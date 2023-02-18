@@ -1,0 +1,8 @@
+mapping_server:
+  server : [1]
+mapping_silo_1:
+  node-1 : [1]
+mapping_silo_2:
+  node-1 : [1]
+mapping_silo_3:
+  node-1 : [1]

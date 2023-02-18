@@ -1,0 +1,19 @@
+# the ID of server is 0, and the ID of clients start from 1
+CommLibBasePort : 51500 # The base port of communication library
+EnableSwitch : 0
+ClientNum : 3
+SwitchNum : 2
+ServerIPAddr : "127.0.0.1"
+ClientIPAddr : # According to the order of client ID, starting from Client ID 1
+- "127.0.0.1"
+- "127.0.0.1"
+- "127.0.0.1"
+ServerSwitchIFace : # The Ethernet port connecting server and each switch, start from Switch ID 0
+- "veth1"
+- "veth2"
+ClientSwitchIFace : # The Ethernet port connecting each client and its switch, start from Client ID 1
+- "veth4"
+- "veth5"
+NetworkTopo : # Specifying which switch each client is belong to, start from Client ID 1
+- 0
+- 1
