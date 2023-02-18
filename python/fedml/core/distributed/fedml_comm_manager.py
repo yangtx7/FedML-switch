@@ -79,6 +79,8 @@ class FedMLCommManager(Observer):
             self.com_manager.stop_receive_message()
         elif self.backend == "TRPC":
             self.com_manager.stop_receive_message()
+        elif self.backend == "SWITCH":
+            self.com_manager.stop_receive_message()
 
     def get_training_mqtt_s3_config(self):
         mqtt_config = None
@@ -199,6 +201,14 @@ class FedMLCommManager(Observer):
 
             self.com_manager = TRPCCommManager(
                 self.args.trpc_master_config_path, process_id=self.rank, world_size=self.size + 1, args=self.args,
+            )
+        elif self.backend == "SWITCH":
+            from .communication.grpc.grpc_comm_manager import SWITCHCommManager
+
+            HOST = "0.0.0.0"
+            PORT = CommunicationConstants.GRPC_BASE_PORT + self.rank
+            self.com_manager = SWITCHCommManager(
+                HOST, PORT, ip_config_path=self.args.grpc_ipconfig_path, client_id=self.rank, client_num=self.size,
             )
         else:
             if self.com_manager is None:
