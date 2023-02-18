@@ -279,6 +279,7 @@ def init_cross_silo_hierarchical(args):
         args.n_proc_in_silo = 1
         args.rank_in_node = 0
         args.proc_rank_in_silo = 0
+        args.process_id = 0
     else:
         # Modify arguments to match info set in env by torchrun
         # Silo Topology

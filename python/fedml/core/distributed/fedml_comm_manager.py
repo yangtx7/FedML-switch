@@ -203,7 +203,7 @@ class FedMLCommManager(Observer):
                 self.args.trpc_master_config_path, process_id=self.rank, world_size=self.size + 1, args=self.args,
             )
         elif self.backend == "SWITCH":
-            from .communication.grpc.grpc_comm_manager import SWITCHCommManager
+            from .communication.switch.switch_comm_manager import SWITCHCommManager
 
             HOST = "0.0.0.0"
             PORT = CommunicationConstants.GRPC_BASE_PORT + self.rank

@@ -1,7 +1,10 @@
 import fedml
 from fedml import FedMLRunner
+import sys, os
 
 if __name__ == "__main__":
+    
+    sys.path.append(os.getcwd()[:-34]+"/fedml/core/distributed/communication/switch/python_io")
     # init FedML framework
     args = fedml.init()
 

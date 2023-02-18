@@ -2,23 +2,6 @@ A modified version of FedML that supports in-network aggregation, forked from ht
 
 This repository also incorporates the code of https://github.com/Tim-Zhong-2000/switch-fed-ml.
 
-
-
-## Running Examples
-```bash
-conda create env -n SwitchFL python=3.8
-git clone https://github.com/yangtx7/FedML-switch.git
-cd python
-pip install -e ./
-
-cd /examples/cross_silo/switch_example
-# 在x个不同终端上运行，需要先运行server
-source run_server.sh # terminal 1
-source run_client.sh 1 0 # terminal 2
-source run_client.sh 2 0 # terminal 3
-...
-source run_client.sh {x-1} 0 # terminal x
-```
 ## Configure
 To ensure proper functioning of SwitchFL, in addition to modifying the configuration of FedML, you may need to make adjustments to the SwitchFL_config.yaml (located in the SwitchFL/python/examples/cross_silo/switch_example/config) to suit your specific circumstances.
 
@@ -28,7 +11,6 @@ The configuration files of FedML may include: (also located in the same director
  - grpc_ipconfig.csv
  - server.yaml
  - silo_x.yaml (x represents the No. of clients)
-
 
 Here is an explained example of SwitchFL_config.yaml:
 ```yaml
@@ -51,6 +33,23 @@ NetworkTopo : # Specifying which switch each client is belong to, start from Cli
 - 0
 - 1
 ```
+
+## Running Examples
+```bash
+conda create env -n SwitchFL python=3.8
+git clone https://github.com/yangtx7/FedML-switch.git
+cd python
+pip install -e ./
+
+cd /examples/cross_silo/switch_example
+# 在x个不同终端上运行，需要先运行server
+source run_server.sh # terminal 1
+source run_client.sh 1 0 # terminal 2
+source run_client.sh 2 0 # terminal 3
+...
+source run_client.sh {x-1} 0 # terminal x
+```
+
 ## Existing Problems
 ### (issue #1)训练完毕无法自动退出
 - 原因：通讯库非remote的server与client类无法正常结束
