@@ -37,7 +37,7 @@ NetworkTopo : # Specifying which switch each client is belong to, start from Cli
 ## Running Examples
 ```bash
 conda create env -n SwitchFL python=3.8
-git clone https://github.com/yangtx7/FedML-switch.git
+git clone https://github.com/yangtx7/SwitchFL.git
 cd python
 pip install -e ./
 
