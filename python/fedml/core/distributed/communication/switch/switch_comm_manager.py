@@ -338,9 +338,8 @@ class SWITCHCommManager(BaseCommunicationManager):
                         self.recv_thread[msg.get_sender_id()].join()
                         msgx = self.recv_queue[msg.get_sender_id()].get()
                     else:
-                        self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] += 1
-                        if self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] == self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]:
-                            self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] = 0
+                        
+                        if self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] == 0:
 
                             self.recv_thread[self.config["NetworkTopo"][msg.get_sender_id()-1]].join()
                             msgx = self.recv_queue[self.config["NetworkTopo"][msg.get_sender_id()-1]].get()
@@ -351,6 +350,10 @@ class SWITCHCommManager(BaseCommunicationManager):
                         else:
                             # generate a packet padded by zeros to imitate a normal msgx.
                             msgx = np.zeros(msg.pkt_num * 256)
+
+                        self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] += 1
+                        if self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] == self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]:
+                            self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] = 0
 
                 if active_commlib == 1:
                     msgx = msgx.astype(np.float) # convert to float
