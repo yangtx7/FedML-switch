@@ -63,6 +63,10 @@ source run_client.sh {x-1} 0 # terminal x
 ### (issue #6)不支持一部分client使用switch而另一部分不使用
 
 ## Update Logs
+#### 2023-03-01
+- 禁用了FedML的网络检测
+- 修复了参数传输的bug
+
 #### 2023-02-18
 - 添加对switch的支持，实现server、client与switch通信的逻辑
 

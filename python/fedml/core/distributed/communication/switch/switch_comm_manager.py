@@ -162,7 +162,6 @@ class SWITCHCommManager(BaseCommunicationManager):
                 msgx = np.array(pkt_list[i].tensor)
             else:
                 msgx = np.concatenate((msgx, np.array(pkt_list[i].tensor)))
-        print(">>> For RECV DEBUG:", msgx[3])
         msg_q.put(msgx)
 
     def send_message(self, msg: Message):
@@ -187,6 +186,7 @@ class SWITCHCommManager(BaseCommunicationManager):
 
         if active_commlib == 1:
             flg = 0
+            print("!!!SEND!!!")
             for it in msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
                 print(it, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
                 if flg == 0:
@@ -202,16 +202,16 @@ class SWITCHCommManager(BaseCommunicationManager):
                         msgx = np.concatenate((msgx, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy()))
                 msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size()
 
-                # padding zeros
-                app = 256 - (np.size(msgx) % 256)
-                msgx = np.concatenate((msgx, np.zeros(shape=app))).astype(np.float32)
-                msg.pkt_num = np.size(msgx) // 256
+            # padding zeros
+            app = 256 - (np.size(msgx) % 256)
+            msgx = np.concatenate((msgx, np.zeros(shape=app))).astype(np.float32)
+            msg.pkt_num = np.size(msgx) // 256
 
-                print(">>> LENGTH of parameter: ", np.size(msgx))
-                if (self.node_type == "server" and self.config["EnableSwitch"] == 1):
-                    print(">>> COMM_LIB SEND (switch):", msg.get_sender_id(), "->", msg.get_receiver_id())
-                else:
-                    print(">>> COMM_LIB SEND :", msg.get_sender_id(), "->", msg.get_receiver_id())
+            print(">>> LENGTH of parameter: ", np.size(msgx))
+            if (self.node_type == "server" and self.config["EnableSwitch"] == 1):
+                print(">>> COMM_LIB SEND (switch):", msg.get_sender_id(), "->", msg.get_receiver_id())
+            else:
+                print(">>> COMM_LIB SEND :", msg.get_sender_id(), "->", msg.get_receiver_id())
 
         logging.info("msg = {}".format(msg))
         logging.info("pickle.dumps(msg) START")
@@ -249,6 +249,7 @@ class SWITCHCommManager(BaseCommunicationManager):
                     self.client.send(self.server, 123, pkt_list, False)
 
             else:
+                # TODO: Need to modify to fit the number of switch
                 if self.node_type == "server":
                     for i in range(msg.pkt_num):
                         pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
@@ -358,6 +359,7 @@ class SWITCHCommManager(BaseCommunicationManager):
                 if active_commlib == 1:
                     msgx = msgx.astype(np.float) # convert to float
                     cul = 0
+                    print("!!!RECV!!!")
                     for it in msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
                         cur = 1
                         for i in range(len(msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it])):
@@ -366,6 +368,8 @@ class SWITCHCommManager(BaseCommunicationManager):
                         cul += cur
                         tmp = torch.reshape(tmp, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it])
                         msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = tmp
+                        print(it, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
+
 
                 MLOpsProfilerEvent.log_to_wandb({"UnpickleTime": time.time() - unpickle_start_time})
                 logging.info("unpickle END")

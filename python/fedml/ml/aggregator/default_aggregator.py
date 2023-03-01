@@ -4,6 +4,7 @@ import logging
 import torch
 import wandb
 from torch import nn
+import yaml
 
 from ... import mlops
 from ...core.alg_frame.server_aggregator import ServerAggregator
@@ -13,6 +14,10 @@ class DefaultServerAggregator(ServerAggregator):
     def __init__(self, model, args):
         super().__init__(model, args)
         self.cpu_transfer = False if not hasattr(self.args, "cpu_transfer") else self.args.cpu_transfer
+        with open("./config/SwitchFL_config.yaml", 'r') as stream:
+            self.config = yaml.safe_load(stream)
+        with open("./SwitchFL_Log.txt", 'a') as f:
+            f.write("Round_number Acc Loss\n")
 
     def get_model_params(self):
         if self.cpu_transfer:
@@ -100,6 +105,8 @@ class DefaultServerAggregator(ServerAggregator):
 
         mlops.log({"Test/Acc": test_acc, "round": args.round_idx})
         mlops.log({"Test/Loss": test_loss, "round": args.round_idx})
+        with open("./SwitchFL_Log.txt", 'a') as f:
+            f.write(str(args.round_idx)+" "+str(test_acc)+" "+str(test_loss)+"\n")
 
         stats = {"test_acc": test_acc, "test_loss": test_loss}
         logging.info(stats)
