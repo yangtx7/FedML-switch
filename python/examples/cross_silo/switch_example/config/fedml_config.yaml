@@ -14,7 +14,7 @@ data_args:
   partition_alpha: 0.5
 
 model_args:
-  model: "cnn"
+  model: "lr"
   model_file_cache_folder: "./model_file_cache" # will be filled by the server automatically
   global_model_file_path: "./model_file_cache/global_model.pt"
 

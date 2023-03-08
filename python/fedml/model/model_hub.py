@@ -31,7 +31,8 @@ def create(args, output_dim):
         model = LogisticRegression_Cifar10(32 * 32 * 3, output_dim)
     elif model_name == "cnn" and args.dataset == "mnist":
         logging.info("CNN + MNIST")
-        model = CNN_DropOut(False)
+        # model = CNN_DropOut(False)
+        model = CNN_DropOut(True)
     elif model_name == "cnn" and args.dataset == "femnist":
         logging.info("CNN + FederatedEMNIST")
         model = CNN_DropOut(False)

@@ -3,6 +3,7 @@ import pickle
 import threading
 from concurrent import futures
 from typing import List
+import copy
 
 import grpc
 from ..grpc import grpc_comm_manager_pb2_grpc, grpc_comm_manager_pb2
@@ -82,6 +83,7 @@ class SWITCHCommManager(BaseCommunicationManager):
                                               "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+5*i), 
                                               i, True))
             else:
+                # TODO：each switch can only match ONE Server
                 for i in range(1, self.client_num + 1):
                     self.server.append(Server(self.config["ServerIPAddr"], 
                                               self.config["CommLibBasePort"]+0+5*i, 
@@ -171,8 +173,10 @@ class SWITCHCommManager(BaseCommunicationManager):
         receiver_ip = self.ip_config[str(receiver_id)]
         channel_url = "{}:{}".format(receiver_ip, str(PORT_BASE + receiver_id))
 
+        msg2 = copy.deepcopy(msg)
+
         active_commlib = 0
-        if self.node_type == "server" and (msg.type == "1" or msg.type == "2"):
+        if self.node_type == "server" and (msg2.type == "1" or msg2.type == "2"):
             if self.config["EnableSwitch"] == 0:
                 active_commlib = 1
             else:
@@ -181,44 +185,49 @@ class SWITCHCommManager(BaseCommunicationManager):
                     self.switchsend[self.config["NetworkTopo"][receiver_id-1]] = 0
                     active_commlib = 1
 
-        if self.node_type == "client" and msg.type == "3":
+        if self.node_type == "client" and msg2.type == "3":
             active_commlib = 1
 
         if active_commlib == 1:
             flg = 0
             print("!!!SEND!!!")
-            for it in msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
-                print(it, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
+            print("!!!SEND_TEST!!!")
+            for it2 in msg2.msg_params:
+                print(it2, type(msg2.msg_params[it2]))
+            print("!!!SEND_TEST END!!!")    
+            for it in msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
+                print(it, msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
                 if flg == 0:
                     flg = 1
-                    if msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].get_device() == 0:
-                        msgx = msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().cpu().numpy()
+                    if msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].get_device() == 0:
+                        msgx = np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().cpu().numpy())
+                        
                     else:
-                        msgx = msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy()
+                        msgx = np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy())
                 else:
-                    if msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].get_device() == 0:
-                        msgx = np.concatenate((msgx, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().cpu().numpy()))
+                    if msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].get_device() == 0:
+                        msgx = np.concatenate((msgx, np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().cpu().numpy())))
                     else:
-                        msgx = np.concatenate((msgx, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy()))
-                msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size()
+                        msgx = np.concatenate((msgx, np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy())))
+                msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size()
 
             # padding zeros
             app = 256 - (np.size(msgx) % 256)
-            msgx = np.concatenate((msgx, np.zeros(shape=app))).astype(np.float32)
-            msg.pkt_num = np.size(msgx) // 256
+            msgx = np.concatenate((msgx, np.zeros(shape=app)))
+            msg2.pkt_num = np.size(msgx) // 256
 
             print(">>> LENGTH of parameter: ", np.size(msgx))
             if (self.node_type == "server" and self.config["EnableSwitch"] == 1):
-                print(">>> COMM_LIB SEND (switch):", msg.get_sender_id(), "->", msg.get_receiver_id())
+                print(">>> COMM_LIB SEND (switch):", msg2.get_sender_id(), "->", msg2.get_receiver_id())
             else:
-                print(">>> COMM_LIB SEND :", msg.get_sender_id(), "->", msg.get_receiver_id())
+                print(">>> COMM_LIB SEND :", msg2.get_sender_id(), "->", msg2.get_receiver_id())
 
-        logging.info("msg = {}".format(msg))
-        logging.info("pickle.dumps(msg) START")
+        logging.info("msg2 = {}".format(msg2))
+        logging.info("pickle.dumps(msg2) START")
         pickle_dump_start_time = time.time()
-        msg_pkl = pickle.dumps(msg)
+        msg_pkl = pickle.dumps(msg2)
         MLOpsProfilerEvent.log_to_wandb({"PickleDumpsTime": time.time() - pickle_dump_start_time})
-        logging.info("pickle.dumps(msg) END")
+        logging.info("pickle.dumps(msg2) END")
 
         channel = grpc.insecure_channel(channel_url, options=self.opts)
         stub = grpc_comm_manager_pb2_grpc.gRPCCommManagerStub(channel)
@@ -240,58 +249,46 @@ class SWITCHCommManager(BaseCommunicationManager):
             
             if self.config["EnableSwitch"] == 0:
                 if self.node_type == "server":
-                    for i in range(msg.pkt_num):
+                    for i in range(msg2.pkt_num):
                         pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, True, msgx[256*i:256*(i+1)]))
                     self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
                 if self.node_type == "client":    
-                    for i in range(msg.pkt_num):
+                    for i in range(msg2.pkt_num):
                         pkt_list.append(self.client.create_packet(123, i, 0, True, msgx[256*i:256*(i+1)]))
                     self.client.send(self.server, 123, pkt_list, False)
 
             else:
                 # TODO: Need to modify to fit the number of switch
                 if self.node_type == "server":
-                    for i in range(msg.pkt_num):
+                    for i in range(msg2.pkt_num):
                         pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
                     self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
                 if self.node_type == "client":    
-                    for i in range(msg.pkt_num):
+                    for i in range(msg2.pkt_num):
                         pkt_list.append(self.client.create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
                     self.client.send(self.server, 123, pkt_list, True)
-
-
-            # restore the original message
-            cul = 0
-            for it in msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
-                cur = 1
-                for i in range(len(msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it])):
-                    cur *= msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it][i]
-                tmp = torch.from_numpy(msgx[cul:cul+cur])
-                cul += cur
-                tmp = torch.reshape(tmp, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it])
-                msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = tmp
 
         # For server, wait for next RECV
         if self.node_type == "server" and active_commlib == 1:
             if self.config["EnableSwitch"] == 0:
-                print(">>>COMMLIB RECV :", msg.get_receiver_id(), "->", msg.get_sender_id())
-                self.recv_thread[msg.get_receiver_id()] = threading.Thread(
+                print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "->", msg2.get_sender_id())
+                self.recv_thread[msg2.get_receiver_id()] = threading.Thread(
                 target=self.recv_tensor, 
                 args=(0,
-                      msg.pkt_num, 
-                      self.server[msg.get_receiver_id()], 
-                      self.client[msg.get_receiver_id()], 
-                      self.recv_queue[msg.get_receiver_id()]))
+                      msg2.pkt_num, 
+                      self.server[msg2.get_receiver_id()], 
+                      self.client[msg2.get_receiver_id()], 
+                      self.recv_queue[msg2.get_receiver_id()]))
 
-                self.recv_thread[msg.get_receiver_id()].start()
+                self.recv_thread[msg2.get_receiver_id()].start()
             else:
-                print(">>>COMMLIB RECV :", msg.get_receiver_id(), "switch ID", self.config["NetworkTopo"][receiver_id-1], "->", msg.get_sender_id())
+                print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "switch ID", self.config["NetworkTopo"][receiver_id-1], "->", msg2.get_sender_id())
                 self.recv_thread[self.config["NetworkTopo"][receiver_id-1]] = threading.Thread(
                     target=self.recv_tensor, 
                     args=(0,
-                        msg.pkt_num, 
-                        self.server[msg.get_receiver_id()], 
-                        self.client[msg.get_receiver_id()], 
+                        msg2.pkt_num, 
+                        self.server[msg2.get_receiver_id()], 
+                        self.client[msg2.get_receiver_id()], 
                         self.recv_queue[self.config["NetworkTopo"][receiver_id-1]]))
 
                 self.recv_thread[self.config["NetworkTopo"][receiver_id-1]].start()
@@ -357,7 +354,8 @@ class SWITCHCommManager(BaseCommunicationManager):
                             self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] = 0
 
                 if active_commlib == 1:
-                    msgx = msgx.astype(np.float) # convert to float
+                    msgx = np.float64(msgx)
+                    # msgx = msgx.astype(np.float) # convert to float
                     cul = 0
                     print("!!!RECV!!!")
                     for it in msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
