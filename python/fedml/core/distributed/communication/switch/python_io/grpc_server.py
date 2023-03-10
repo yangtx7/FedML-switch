@@ -32,7 +32,10 @@ class SwitchmlIOServicer(io_pb2_grpc.SwitchmlIOServicer):
 
 class GrpcServer:
     def __init__(self, node):
-        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
+            ('grpc.max_send_message_length', 100 * 1024 * 1024),
+            ('grpc.max_receive_message_length', 100 * 1024 * 1024)
+        ])
         io_pb2_grpc.add_SwitchmlIOServicer_to_server(
             SwitchmlIOServicer(node),
             self.server

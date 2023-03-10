@@ -10,6 +10,7 @@ import typing
 from grpc_server import GrpcServer
 import time
 
+
 class Node:
     def __init__(self, ip_addr: str, rx_port: int, tx_port: int, rpc_addr: str, node_id: int, is_remote_node: bool, iface: str, group_id: int = 10):
         self.options = {
@@ -79,12 +80,13 @@ class Node:
             pass
 
     def _init_as_remote_node(self):
-        addr = self.options['rpc_addr']
-        channel = grpc.insecure_channel(addr, options=[
-            ('grpc.max_send_message_length', 100 * 1024 * 1024),
-            ('grpc.max_receive_message_length', 100 * 1024 * 1024)
-        ])
-        self.rpc_stub = SwitchmlIOStub(channel)
+        if not self.type == "switch":
+            addr = self.options['rpc_addr']
+            channel = grpc.insecure_channel(addr, options=[
+                ('grpc.max_send_message_length', 100 * 1024 * 1024),
+                ('grpc.max_receive_message_length', 100 * 1024 * 1024)
+            ])
+            self.rpc_stub = SwitchmlIOStub(channel)
 
     def receive_async(self, node, round_id, total_packet_num, worker_number):
         # type: (Node, int, int, int) -> Job
@@ -103,8 +105,15 @@ class Node:
         返回收到的 packet list
         """
         print("开始接收")
-        worker_number = len(node.children) if node.type == "switch" else 1 
-        job = self.receive_async(node, round_id, total_packet_num, worker_number)
+        if node.type == "switch":
+            job = self.receive_async(
+                node, round_id, total_packet_num, len(node.children))
+            for child_node_id in node.children.keys():
+                print("register job for child=%d" % (child_node_id))
+                self.rx_jobs[(round_id, child_node_id)] = job
+        else:
+            job = self.receive_async(node, round_id, total_packet_num, 1)
+
         job.wait_until_job_finish()
 
         received = job.bitmap.sum()
@@ -113,6 +122,9 @@ class Node:
               (received, total, 100 * (total - received) / total))
         key: tuple = (round_id, node.options['node_id'])
         del self.rx_jobs[key]
+        if node.type == "switch":
+            for child_node_id in node.children.keys():
+                del self.rx_jobs[(round_id, child_node_id)]
         return job.buffer
 
     def add_child(self, node):
@@ -170,7 +182,8 @@ class Node:
             key: tuple = (pkt.round_id, pkt.node_id)
             job = self.rx_jobs.get(key)
             if job is None:
-                print("WARNING: receive job not exist! round_id:%d node_id:%d" % (pkt.round_id, pkt.node_id)) 
+                print("WARNING: receive job not exist! round_id:%d node_id:%d" % (
+                    pkt.round_id, pkt.node_id))
                 continue
             job.handle_packet(pkt)
             # if pkt.aggregate_num == 1:
@@ -179,7 +192,7 @@ class Node:
             if self.type == "server":
                 self.rx_sock.sendto(pkt.gen_ack_packet(), client)
 
-    def create_packet(self, round_id: int, segment_id: int, group_id: int, bypass: bool, data: np.ndarray):
+    def create_packet(self, round_id: int, segment_id: int, group_id: int, bypass: bool, data: np.ndarray, multicast: bool = False):
         """
         - round_id: 轮次 id 可以认为一次 send 是一次轮次
         - segment_id (packet_id): 在当前轮次中包 id
@@ -191,8 +204,14 @@ class Node:
         创建的包可以直接发送，不推荐手动操作数据
         """
         pkt = Packet()
+        flow_control = 0
+        if bypass:
+            flow_control |= bypass_bitmap
+        if multicast:
+            flow_control |= multicast_bitmap
+
         pkt.set_header(
-            flow_control=bypass_bitmap if bypass else 0,
+            flow_control=flow_control,
             data_type=DataType.FLOAT32.value,
             round_id=round_id,
             segment_id=segment_id,

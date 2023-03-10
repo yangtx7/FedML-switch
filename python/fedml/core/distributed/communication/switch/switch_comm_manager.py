@@ -53,7 +53,33 @@ class SWITCHCommManager(BaseCommunicationManager):
         with open("./config/SwitchFL_config.yaml", 'r') as stream:
             self.config = yaml.safe_load(stream)
 
-        if client_id == 0:
+        self.init_connection()
+       
+        self.opts = [
+            ("grpc.max_send_message_length", 1000 * 1024 * 1024),
+            ("grpc.max_receive_message_length", 1000 * 1024 * 1024),
+            ("grpc.enable_http_proxy", 0),
+        ]
+        self.grpc_server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=client_num),
+            options=self.opts,
+        )
+        self.grpc_servicer = GRPCCOMMServicer(host, port, client_num, client_id)
+        grpc_comm_manager_pb2_grpc.add_gRPCCommManagerServicer_to_server(
+            self.grpc_servicer, self.grpc_server
+        )
+        logging.info(os.getcwd())
+        self.ip_config = self._build_ip_table(ip_config_path)
+
+        # starts a grpc_server on local machine using ip address "0.0.0.0"
+        self.grpc_server.add_insecure_port("{}:{}".format("0.0.0.0", port))
+
+        self.grpc_server.start()
+        self.is_running = True
+        logging.info("grpc server started. Listening on port " + str(port))
+
+    def init_connection(self):
+        if self.client_id == 0:
             self.node_type = "server"
             self.recv_thread = [0 for i in range(self.client_num + 1)]
             self.recv_queue = [queue.Queue() for i in range(self.client_num + 1)]
@@ -129,29 +155,6 @@ class SWITCHCommManager(BaseCommunicationManager):
                                     i, False, 
                                     self.config["ClientSwitchIFace"][i-1])
 
-        self.opts = [
-            ("grpc.max_send_message_length", 1000 * 1024 * 1024),
-            ("grpc.max_receive_message_length", 1000 * 1024 * 1024),
-            ("grpc.enable_http_proxy", 0),
-        ]
-        self.grpc_server = grpc.server(
-            futures.ThreadPoolExecutor(max_workers=client_num),
-            options=self.opts,
-        )
-        self.grpc_servicer = GRPCCOMMServicer(host, port, client_num, client_id)
-        grpc_comm_manager_pb2_grpc.add_gRPCCommManagerServicer_to_server(
-            self.grpc_servicer, self.grpc_server
-        )
-        logging.info(os.getcwd())
-        self.ip_config = self._build_ip_table(ip_config_path)
-
-        # starts a grpc_server on local machine using ip address "0.0.0.0"
-        self.grpc_server.add_insecure_port("{}:{}".format("0.0.0.0", port))
-
-        self.grpc_server.start()
-        self.is_running = True
-        logging.info("grpc server started. Listening on port " + str(port))
-
     def recv_tensor(self, typ: int, pkt_num: int, server: Server, client :Client, msg_q: queue.Queue):
         if typ == 0:
             pkt_list = server.receive(client, 123, pkt_num)
@@ -176,6 +179,7 @@ class SWITCHCommManager(BaseCommunicationManager):
         msg2 = copy.deepcopy(msg)
 
         active_commlib = 0
+
         if self.node_type == "server" and (msg2.type == "1" or msg2.type == "2"):
             if self.config["EnableSwitch"] == 0:
                 active_commlib = 1
@@ -189,38 +193,8 @@ class SWITCHCommManager(BaseCommunicationManager):
             active_commlib = 1
 
         if active_commlib == 1:
-            flg = 0
-            print("!!!SEND!!!")
-            print("!!!SEND_TEST!!!")
-            for it2 in msg2.msg_params:
-                print(it2, type(msg2.msg_params[it2]))
-            print("!!!SEND_TEST END!!!")    
-            for it in msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
-                print(it, msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
-                if flg == 0:
-                    flg = 1
-                    if msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].get_device() == 0:
-                        msgx = np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().cpu().numpy())
-                        
-                    else:
-                        msgx = np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy())
-                else:
-                    if msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].get_device() == 0:
-                        msgx = np.concatenate((msgx, np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().cpu().numpy())))
-                    else:
-                        msgx = np.concatenate((msgx, np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy())))
-                msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size()
+            msgx = self.extract_tensor(msg2)
 
-            # padding zeros
-            app = 256 - (np.size(msgx) % 256)
-            msgx = np.concatenate((msgx, np.zeros(shape=app)))
-            msg2.pkt_num = np.size(msgx) // 256
-
-            print(">>> LENGTH of parameter: ", np.size(msgx))
-            if (self.node_type == "server" and self.config["EnableSwitch"] == 1):
-                print(">>> COMM_LIB SEND (switch):", msg2.get_sender_id(), "->", msg2.get_receiver_id())
-            else:
-                print(">>> COMM_LIB SEND :", msg2.get_sender_id(), "->", msg2.get_receiver_id())
 
         logging.info("msg2 = {}".format(msg2))
         logging.info("pickle.dumps(msg2) START")
@@ -245,57 +219,99 @@ class SWITCHCommManager(BaseCommunicationManager):
 
         # SEND
         if active_commlib == 1:
-            pkt_list = []
-
-            sleep(0.1)
-            
-            if self.config["EnableSwitch"] == 0:
-                if self.node_type == "server":
-                    for i in range(msg2.pkt_num):
-                        pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, True, msgx[256*i:256*(i+1)]))
-                    self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
-                if self.node_type == "client":    
-                    for i in range(msg2.pkt_num):
-                        pkt_list.append(self.client.create_packet(123, i, 0, True, msgx[256*i:256*(i+1)]))
-                    self.client.send(self.server, 123, pkt_list, False)
-
-            else:
-                # TODO: Need to modify to fit the number of switch
-                if self.node_type == "server":
-                    for i in range(msg2.pkt_num):
-                        pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
-                    self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
-                if self.node_type == "client":    
-                    for i in range(msg2.pkt_num):
-                        pkt_list.append(self.client.create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
-                    self.client.send(self.server, 123, pkt_list, True)
+            self.send_tensor(msg2, msgx)
 
         # For server, wait for next RECV
         if self.node_type == "server" and active_commlib == 1:
-            if self.config["EnableSwitch"] == 0:
-                print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "->", msg2.get_sender_id())
-                self.recv_thread[msg2.get_receiver_id()] = threading.Thread(
+            self.wait_for_recv(msg2)
+
+
+    def extract_tensor(self, msg2: Message):
+        flg = 0
+        print("!!!SEND!!!")
+
+        for it in msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
+            print(it, msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
+            if flg == 0:
+                flg = 1
+                if msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].get_device() == 0:
+                    msgx = np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().cpu().numpy())
+                    
+                else:
+                    msgx = np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy())
+            else:
+                if msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].get_device() == 0:
+                    msgx = np.concatenate((msgx, np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().cpu().numpy())))
+                else:
+                    msgx = np.concatenate((msgx, np.float32(msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].flatten().numpy())))
+            msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size()
+
+        # padding zeros
+        app = 256 - (np.size(msgx) % 256)
+        msgx = np.concatenate((msgx, np.zeros(shape=app)))
+        msg2.pkt_num = np.size(msgx) // 256
+        
+        print(">>> LENGTH of parameter: ", np.size(msgx))
+        if (self.node_type == "server" and self.config["EnableSwitch"] == 1):
+            print(">>> COMM_LIB SEND (switch):", msg2.get_sender_id(), "->", msg2.get_receiver_id())
+        else:
+            print(">>> COMM_LIB SEND :", msg2.get_sender_id(), "->", msg2.get_receiver_id())    
+
+        return msgx
+    
+    def send_tensor(self, msg2: Message, msgx):
+        receiver_id = msg2.get_receiver_id()
+        pkt_list = []
+
+        sleep(0.1)
+        
+        if self.config["EnableSwitch"] == 0:
+            if self.node_type == "server":
+                for i in range(msg2.pkt_num):
+                    pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, True, msgx[256*i:256*(i+1)]))
+                self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
+            if self.node_type == "client":    
+                for i in range(msg2.pkt_num):
+                    pkt_list.append(self.client.create_packet(123, i, 0, True, msgx[256*i:256*(i+1)]))
+                self.client.send(self.server, 123, pkt_list, False)
+        else:
+            # TODO: Need to modify to fit the number of switch
+
+            if self.node_type == "server":
+                for i in range(msg2.pkt_num):
+                    pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
+                self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
+
+            if self.node_type == "client":    
+                for i in range(msg2.pkt_num):
+                    pkt_list.append(self.client.create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
+                self.client.send(self.server, 123, pkt_list, True)
+
+    def wait_for_recv(self, msg2: Message):
+        receiver_id = msg2.get_receiver_id()
+
+        if self.config["EnableSwitch"] == 0:
+            print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "->", msg2.get_sender_id())
+
+            self.recv_thread[msg2.get_receiver_id()] = threading.Thread(
+            target=self.recv_tensor, 
+            args=(0,
+                  msg2.pkt_num, 
+                  self.server[msg2.get_receiver_id()], 
+                  self.client[msg2.get_receiver_id()], 
+                  self.recv_queue[msg2.get_receiver_id()]))
+            self.recv_thread[msg2.get_receiver_id()].start()
+        else:
+            print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "switch ID", self.config["NetworkTopo"][receiver_id-1], "->", msg2.get_sender_id())
+
+            self.recv_thread[self.config["NetworkTopo"][receiver_id-1]] = threading.Thread(
                 target=self.recv_tensor, 
                 args=(0,
-                      msg2.pkt_num, 
-                      self.server[msg2.get_receiver_id()], 
-                      self.client[msg2.get_receiver_id()], 
-                      self.recv_queue[msg2.get_receiver_id()]))
-
-                self.recv_thread[msg2.get_receiver_id()].start()
-            else:
-                print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "switch ID", self.config["NetworkTopo"][receiver_id-1], "->", msg2.get_sender_id())
-                self.recv_thread[self.config["NetworkTopo"][receiver_id-1]] = threading.Thread(
-                    target=self.recv_tensor, 
-                    args=(0,
-                        msg2.pkt_num, 
-                        self.server[msg2.get_receiver_id()], 
-                        self.client[msg2.get_receiver_id()], 
-                        self.recv_queue[self.config["NetworkTopo"][receiver_id-1]]))
-
-                self.recv_thread[self.config["NetworkTopo"][receiver_id-1]].start()
-
-
+                    msg2.pkt_num, 
+                    self.server[msg2.get_receiver_id()], 
+                    self.client[msg2.get_receiver_id()], 
+                    self.recv_queue[self.config["NetworkTopo"][receiver_id-1]]))
+            self.recv_thread[self.config["NetworkTopo"][receiver_id-1]].start()
 
     def add_observer(self, observer: Observer):
         self._observers.append(observer)
@@ -320,6 +336,8 @@ class SWITCHCommManager(BaseCommunicationManager):
                 msg = pickle.loads(msg_pkl)
 
                 active_commlib = 0
+
+                # only client need to start the receiving thread (server has started before)
 
                 if self.node_type == "client" and (msg.type == "1" or msg.type == "2"):
                     print(">>>COMMLIB RECV :", msg.get_sender_id(), "->", msg.get_receiver_id())
@@ -356,20 +374,7 @@ class SWITCHCommManager(BaseCommunicationManager):
                             self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] = 0
 
                 if active_commlib == 1:
-                    msgx = np.float64(msgx)
-                    # msgx = msgx.astype(np.float) # convert to float
-                    cul = 0
-                    print("!!!RECV!!!")
-                    for it in msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
-                        cur = 1
-                        for i in range(len(msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it])):
-                            cur *= msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it][i]
-                        tmp = torch.from_numpy(msgx[cul:cul+cur])
-                        cul += cur
-                        tmp = torch.reshape(tmp, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it])
-                        msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = tmp
-                        print(it, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
-
+                    self.embed_tensor(msg, msgx)
 
                 MLOpsProfilerEvent.log_to_wandb({"UnpickleTime": time.time() - unpickle_start_time})
                 logging.info("unpickle END")
@@ -383,6 +388,20 @@ class SWITCHCommManager(BaseCommunicationManager):
             time.sleep(0.0001)
         MLOpsProfilerEvent.log_to_wandb({"TotalTime": time.time() - start_listening_time})
         return
+
+    def embed_tensor(self, msg: Message, msgx):
+        msgx = np.float64(msgx) # convert to float
+        cul = 0
+        print("!!!RECV!!!")
+        for it in msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
+            cur = 1
+            for i in range(len(msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it])):
+                cur *= msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it][i]
+            tmp = torch.from_numpy(msgx[cul:cul+cur])
+            cul += cur
+            tmp = torch.reshape(tmp, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it])
+            msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it] = tmp
+            print(it, msg.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
 
     def stop_receive_message(self):
         self.grpc_server.stop(None)

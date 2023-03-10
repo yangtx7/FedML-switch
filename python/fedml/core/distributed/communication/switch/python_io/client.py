@@ -63,11 +63,13 @@ class Client(Node):
                                 send_window[i].buffer, server_addr)
                         except:
                             pass
+
         send_end = time.time()
 
         retransmit_time = self.check_and_retransmit(server, round_id, packet_list)
 
-        print("client 发送结束 发送耗时 %f 发送速率 %f Mbps 重传耗时 %f" % (
+        print("client %d 发送结束 发送耗时 %f 发送速率 %f Mbps 重传耗时 %f" % (
+            self.options["node_id"],
             send_end - send_start,
             elemenet_per_packet * total_packet_num * 4 / 1024 / 1024 * 8 / (send_end - send_start),
             retransmit_time))
