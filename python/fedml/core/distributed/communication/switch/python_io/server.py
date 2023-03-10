@@ -3,6 +3,7 @@ import time
 from node import Node
 from node import Node
 
+
 class Server(Node):
 
     def __init__(self, ip_addr: str, rx_port: int, tx_port: int, rpc_addr: str, node_id: int, is_remote_node: bool, iface: str = ""):
@@ -13,12 +14,13 @@ class Server(Node):
         self._close()
 
     # 下发不检测丢包
-    def send(self, node: Node, job_id: int, packet_list: list):
+    def send(self, node: Node, round_id: int, packet_list: list):
         """
         - node: 发送目标
-        - job_id: 此次发送的任务号
+        - round_id: 此次发送的任务号
         - packet_list: list[Packet]
         """
+        print("server 开始发送")
         send_start = time.time()
         server_addr = (node.options['ip_addr'], node.options['rx_port'])
         total_packet_num = len(packet_list)
@@ -28,33 +30,23 @@ class Server(Node):
             if i % 100 == 0:
                 time.sleep(0.001)
         send_end = time.time()
-        print("发送耗时 %f 发送速率 %f Mbps" % (
-            send_end - send_start,
-            elemenet_per_packet * total_packet_num * 4 / 1024 / 1024 * 8 / (send_end - send_start)))
 
+        resend_time = 0
         if node.type == "switch":
             for client in node.children.values():
-                self.check_and_retransmit(client, job_id, packet_list)
+                resend_time += self.check_and_retransmit(
+                    client, round_id, packet_list)
         else:
-            self.check_and_retransmit(node, job_id, packet_list)
-        return
+            resend_time += self.check_and_retransmit(
+                node, round_id, packet_list)
 
-    def receive_thread(self) -> None:
-        while True:
-            pkt = Packet()
-            _, client = self.rx_sock.recvfrom_into(pkt.buffer, pkt_size)
-            pkt.parse_header()
-            pkt.parse_payload()
-            key: tuple = (pkt.job_id, pkt.node_id)
-            job = self.rx_jobs.get(key)
-            if job is None:
-                print("WARNING: receive job not exist! job_id:%d node_id:%d") % (pkt.job_id, pkt.node_id)
-                continue
-            job.handle_packet(pkt)
-            # if pkt.aggregate_num == 1:
-            #     # 聚合数不等于 1 通常是 switch 发出，不需要 ack
-            #     self.rx_sock.sendto(pkt.gen_ack_packet(), client)
-            self.rx_sock.sendto(pkt.gen_ack_packet(), client)
+        print("server 发送结束 发送耗时 %f 发送速率 %f Mbps 重传耗时 %f" % (
+            send_end - send_start,
+            elemenet_per_packet * total_packet_num * 4 /
+            1024 / 1024 * 8 / (send_end - send_start),
+            resend_time))
+            
+        return
 
     def get_node_list_by_group_id(self):
         # TODO

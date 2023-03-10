@@ -2,7 +2,7 @@ import socket
 import numpy as np
 from scapy.all import IPOption, raw
 
-# tensor_id     uint32
+# round_id     uint32
 # node_id       uint32
 # grp_id        uint32
 

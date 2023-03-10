@@ -1,8 +1,8 @@
 # the ID of server is 0, and the ID of clients start from 1
 CommLibBasePort : 51500 # The base port of communication library
 EnableSwitch : 0
-ClientNum : 2
-SwitchNum : 2
+ClientNum : 1
+SwitchNum : 1
 ServerIPAddr : "127.0.0.1"
 ClientIPAddr : # According to the order of client ID, starting from Client ID 1
 - "127.0.0.1"

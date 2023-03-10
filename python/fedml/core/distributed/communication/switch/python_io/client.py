@@ -9,13 +9,14 @@ class Client(Node):
         self.type = "client"
 
     # tensor 长度需要被 elemenet_per_packet 整除
-    def send(self, server: Node, job_id: int, packet_list: list, has_switch: bool) -> int:
+    def send(self, server: Node, round_id: int, packet_list: list, has_switch: bool) -> int:
         """
         - server: 参数服务器
-        - job_id: 此次发送的任务号，需要与 packet_list 内所有包任务号相同
+        - round_id: 此次发送的轮次号，需要与 packet_list 内所有包轮次号相同
         - packet_list: list[Packet]
         - has_switch: 是否使用 switch 聚合模式发送
         """
+        print("client 开始发送")
         server_addr = (server.options['ip_addr'], server.options['rx_port'])
 
         # 一次性发出发送窗口所有包
@@ -39,7 +40,7 @@ class Client(Node):
             try:
                 self.tx_sock.recv_into(rx_pkt.buffer)
                 rx_pkt.parse_header()
-                if rx_pkt.ack and rx_pkt.job_id == send_window[rx_pkt.pool_id].job_id and rx_pkt.segment_id == send_window[rx_pkt.pool_id].segment_id:
+                if rx_pkt.ack and rx_pkt.round_id == send_window[rx_pkt.pool_id].round_id and rx_pkt.segment_id == send_window[rx_pkt.pool_id].segment_id:
                     finish_cnt += 1
                     next_packet_segment_id = send_window[rx_pkt.pool_id].segment_id + window_size
                     # print("rtt %f" % (time.time() - send_window_time[rx_pkt.pool_id]))
@@ -49,9 +50,6 @@ class Client(Node):
                         send_window_time[rx_pkt.pool_id] = time.time()
                         self.tx_sock.sendto(
                             send_window[rx_pkt.pool_id].buffer, server_addr)
-                if rx_pkt.ecn:
-                    # TODO: 如果支持多任务，需要添加 ecn
-                    pass
             except:
                 # 找出超时的包重发
                 now = time.time()
@@ -67,23 +65,10 @@ class Client(Node):
                             pass
         send_end = time.time()
 
-        retransmit_time = self.check_and_retransmit(server, job_id, packet_list)
+        retransmit_time = self.check_and_retransmit(server, round_id, packet_list)
 
-        print("发送耗时 %f 发送速率 %f Mbps 重传耗时 %f" % (
+        print("client 发送结束 发送耗时 %f 发送速率 %f Mbps 重传耗时 %f" % (
             send_end - send_start,
             elemenet_per_packet * total_packet_num * 4 / 1024 / 1024 * 8 / (send_end - send_start),
             retransmit_time))
         return
-
-    def receive_thread(self) -> None:
-        while True:
-            pkt = Packet()
-            _, client = self.rx_sock.recvfrom_into(pkt.buffer, pkt_size)
-            pkt.parse_header()
-            pkt.parse_payload()
-            key: tuple = (pkt.job_id, pkt.node_id)
-            job = self.rx_jobs.get(key)
-            if job is None:
-                continue
-            job.handle_packet(pkt)
-            # client 不需要 ack

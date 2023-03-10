@@ -16,7 +16,7 @@ class DataType(Enum):
 # flow_control  uint8
 # data_type     uint8
 # pool_id       uint16
-# job_id        uint32
+# round_id      uint32
 # segment_id    uint32
 # node_id       uint16
 # aggregate_num uint16
@@ -48,7 +48,7 @@ class Packet:
 
         self.flow_control = 0
         self.data_type = DataType.FLOAT32.value
-        self.job_id = 0
+        self.round_id = 0
         self.segment_id = 0
         self.node_id = 0
         self.aggregate_num = 0
@@ -62,9 +62,9 @@ class Packet:
 
         self.tensor: typing.Union[np.ndarray, None] = None
 
-    def set_header(self, flow_control: int, data_type: int, job_id: int, segment_id: int, node_id: int, aggregate_num: int, mcast_grp: int, pool_id: int):
+    def set_header(self, flow_control: int, data_type: int, round_id: int, segment_id: int, node_id: int, aggregate_num: int, mcast_grp: int, pool_id: int):
         self.flow_control = flow_control
-        self.job_id = job_id
+        self.round_id = round_id
         self.segment_id = segment_id
         self.node_id = node_id
         self.aggregate_num = aggregate_num
@@ -85,7 +85,7 @@ class Packet:
             flow_control=header_val[0],
             data_type=header_val[1],
             pool_id=header_val[2],
-            job_id=header_val[3],
+            round_id=header_val[3],
             segment_id=header_val[4],
             node_id=header_val[5],
             aggregate_num=header_val[6],
@@ -101,7 +101,7 @@ class Packet:
             self.flow_control,
             self.data_type,
             self.pool_id,
-            self.job_id,
+            self.round_id,
             self.segment_id,
             self.node_id,
             self.aggregate_num,
@@ -134,7 +134,7 @@ class Packet:
             self.flow_control | ack_bitmap | bypass_bitmap,
             self.data_type,
             self.pool_id,
-            self.job_id,
+            self.round_id,
             self.segment_id,
             self.node_id,
             self.aggregate_num,

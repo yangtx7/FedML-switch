@@ -10,7 +10,7 @@ from ..grpc import grpc_comm_manager_pb2_grpc, grpc_comm_manager_pb2
 
 lock = threading.Lock()
 
-
+from time import sleep
 from .....cross_silo.server.message_define import MyMessage
 from ...communication.base_com_manager import BaseCommunicationManager
 from ...communication.message import Message
@@ -246,6 +246,8 @@ class SWITCHCommManager(BaseCommunicationManager):
         # SEND
         if active_commlib == 1:
             pkt_list = []
+
+            sleep(0.1)
             
             if self.config["EnableSwitch"] == 0:
                 if self.node_type == "server":

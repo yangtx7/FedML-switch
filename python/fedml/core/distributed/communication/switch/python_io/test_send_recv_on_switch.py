@@ -5,7 +5,7 @@ import numpy as np
 import time
 from multiprocessing import Process
 
-job_id = 100
+round_id = 100
 
 
 def client_send():
@@ -26,7 +26,7 @@ def client_send():
         iface="veth1")
     data = np.random.rand((256)).astype(np.float32)
     packet_list = [client.create_packet(
-        job_id=job_id,
+        round_id=round_id,
         segment_id=i,
         group_id=1,
         bypass=False,
@@ -35,7 +35,7 @@ def client_send():
     print(data[0:5])
     client.send(
         server=server,
-        job_id=job_id,
+        round_id=round_id,
         packet_list=packet_list,
         has_switch=True
     )
@@ -59,7 +59,7 @@ def server_receive():
         is_remote_node=True)
     packet_list = server.receive(
         node=client,
-        job_id=job_id,
+        round_id=round_id,
         total_packet_num=10240
     )
     print(packet_list[0].tensor[0:5])
