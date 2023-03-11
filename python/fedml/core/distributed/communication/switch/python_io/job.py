@@ -22,6 +22,7 @@ class Job:
 
     def finish(self):
         self.remain_worker_number -= 1
+        print("一个节点完成了发送流程，剩余等待节点为 %d" % (self.remain_worker_number))
         if self.remain_worker_number == 0:
             self._lock.release()
 

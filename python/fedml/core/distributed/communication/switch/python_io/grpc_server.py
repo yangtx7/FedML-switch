@@ -27,6 +27,8 @@ class SwitchmlIOServicer(io_pb2_grpc.SwitchmlIOServicer):
 
     def ReadMissingSlice(self, request: PacketLoss.Request, context):
         job = self.node.rx_jobs.get((request.round_id, request.node_id))
+        if job is None:
+            raise "对方的接收 job 已经结束，调用丢包检测时机有误，或者对端提前结束了接收"
         return PacketLoss.Response(missing_packet_list=job.read_missing_slice(request.max_segment_id))
 
 
