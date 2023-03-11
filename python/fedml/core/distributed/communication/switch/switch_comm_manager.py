@@ -105,7 +105,7 @@ class SWITCHCommManager(BaseCommunicationManager):
                                           "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+6*i), 
                                           i, True))
         else:
-            # TODO : by default EnableSwitch=2, for EnableSwitch=2 need to be completed
+            # TODO : by default EnableSwitch=2, for EnableSwitch=1 need to be completed
             # some counters used in send/recv logic
             self.switchsend = [0 for i in range(self.config["SwitchNum"])]
             self.switchsend2 = [0 for i in range(self.config["SwitchNum"])]
