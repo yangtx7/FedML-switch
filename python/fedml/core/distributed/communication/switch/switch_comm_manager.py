@@ -269,13 +269,15 @@ class SWITCHCommManager(BaseCommunicationManager):
         logging.debug("sent successfully")
         channel.close()
 
-        if self.node_type == "client":
-            self.round_number += 1
         # SEND
         if active_commlib == 1:
             self.send_tensor(msg2, msgx)
             if self.node_type == "server":
                 self.wait_for_recv(msg2)
+        if self.node_type == "client" and msg2.type == "3":
+            print("round number", self.round_number, "->", self.round_number+1)
+            self.round_number += 1
+        
             
 
 
@@ -350,16 +352,16 @@ class SWITCHCommManager(BaseCommunicationManager):
     def wait_for_recv(self, msg2: Message):
         receiver_id = msg2.get_receiver_id()
 
-        enable_wait_recv = 0
+        enable_wait_recv = 1
 
-        if self.config["EnableSwitch"] == 0:
-            enable_wait_recv = 1
-        else:
-            if self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] == 0:
-                enable_wait_recv = 1
-            self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] += 1
-            if self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] == self.switchtot[self.config["NetworkTopo"][receiver_id-1]]:
-                self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] = 0
+        # if self.config["EnableSwitch"] == 0:
+        #     enable_wait_recv = 1
+        # else:
+        #     if self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] == 0:
+        #         enable_wait_recv = 1
+        #     self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] += 1
+        #     if self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] == self.switchtot[self.config["NetworkTopo"][receiver_id-1]]:
+        #         self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] = 0
 
         if enable_wait_recv == 1:
             print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "->", msg2.get_sender_id())
@@ -444,6 +446,14 @@ class SWITCHCommManager(BaseCommunicationManager):
                         if self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] == self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]:
                             self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] = 0
 
+                    self.recv_cnt += 1
+                    print("!!!")
+                    print("recv_cnt =", self.recv_cnt)
+                    if self.recv_cnt == self.config["ClientNum"]:
+                        self.recv_cnt = 0
+                        print("round number", self.round_number, "->", self.round_number+1)
+                        self.round_number += 1
+
                 if active_commlib == 1:
                     self.embed_tensor(msg, msgx)
 
@@ -456,11 +466,6 @@ class SWITCHCommManager(BaseCommunicationManager):
                     MLOpsProfilerEvent.log_to_wandb({"MessageHandlerTime": time.time() - _message_handler_start_time})
                 MLOpsProfilerEvent.log_to_wandb({"BusyTime": time.time() - busy_time_start_time})
 
-                if self.client_id == 0:
-                    self.recv_cnt += 1
-                    if self.recv_cnt == self.config["ClientNum"]:
-                        self.recv_cnt += 1
-                        self.round_number += 1
 
                 lock.release()
             time.sleep(0.0001)
