@@ -104,7 +104,7 @@ class Node:
 
         返回收到的 packet list
         """
-        print("开始接收")
+        print("开始接收，创建接收任务 round_id=%d 从 node=%d" % (round_id, node.options["node_id"]))
         if node.type == "switch":
             job = self.receive_async(
                 node, round_id, total_packet_num, len(node.children))
