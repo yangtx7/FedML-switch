@@ -33,6 +33,7 @@ class Server(Node):
 
         resend_time = 0
         if node.type == "switch":
+            time.sleep(0.1)
             for client in node.children.values():
                 resend_time += self.check_and_retransmit(
                     client, round_id, packet_list)
