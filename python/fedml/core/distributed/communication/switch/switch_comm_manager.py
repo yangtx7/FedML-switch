@@ -51,6 +51,7 @@ class SWITCHCommManager(BaseCommunicationManager):
         self.client_num = client_num
         self._observers: List[Observer] = []
         self.rank = client_id
+        self.round_number = 1
 
         with open("./config/SwitchFL_config.yaml", 'r') as stream:
             self.config = yaml.safe_load(stream)
@@ -85,6 +86,7 @@ class SWITCHCommManager(BaseCommunicationManager):
 
     def server_init_connection(self):
         self.node_type = "server"
+        self.recv_cnt = 0
 
         if self.config["EnableSwitch"] == 0:
             self.recv_thread = [None for i in range(self.client_num + 1)]
@@ -206,9 +208,9 @@ class SWITCHCommManager(BaseCommunicationManager):
 
     def recv_tensor(self, typ: int, pkt_num: int, server: Node, client: Node, msg_q: queue.Queue):
         if typ == 0:
-            pkt_list = server.receive(client, 123, pkt_num)
+            pkt_list = server.receive(client, self.round_number, pkt_num)
         else:
-            pkt_list = client.receive(server, 123, pkt_num)
+            pkt_list = client.receive(server, self.round_number, pkt_num)
         flg = 0
         for i in range(pkt_num):
             if flg == 0:
@@ -267,6 +269,8 @@ class SWITCHCommManager(BaseCommunicationManager):
         logging.debug("sent successfully")
         channel.close()
 
+        if self.node_type == "client":
+            self.round_number += 1
         # SEND
         if active_commlib == 1:
             self.send_tensor(msg2, msgx)
@@ -317,12 +321,12 @@ class SWITCHCommManager(BaseCommunicationManager):
         if self.node_type == "server":
             if self.config["EnableSwitch"] == 0:
                 for i in range(msg2.pkt_num):
-                    pkt_list.append(self.server[receiver_id].create_packet(123, i, 1, True, msgx[256*i:256*(i+1)]))
-                self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
+                    pkt_list.append(self.server[receiver_id].create_packet(self.round_number, i, 1, True, msgx[256*i:256*(i+1)]))
+                self.server[receiver_id].send(self.client[receiver_id], self.round_number, pkt_list)
             else:
                 for i in range(msg2.pkt_num):
-                    pkt_list.append(self.server[self.config["NetworkTopo"][receiver_id-1]].create_packet(123, i, 1, False, msgx[256*i:256*(i+1)], True))
-                self.server[self.config["NetworkTopo"][receiver_id-1]].send(self.switch[self.config["NetworkTopo"][receiver_id-1]], 123, pkt_list)
+                    pkt_list.append(self.server[self.config["NetworkTopo"][receiver_id-1]].create_packet(self.round_number, i, 1, False, msgx[256*i:256*(i+1)], True))
+                self.server[self.config["NetworkTopo"][receiver_id-1]].send(self.switch[self.config["NetworkTopo"][receiver_id-1]], self.round_number, pkt_list)
 
             
 
@@ -331,16 +335,16 @@ class SWITCHCommManager(BaseCommunicationManager):
 
             if self.config["EnableSwitch"] == 0:
                 for i in range(msg2.pkt_num):
-                    pkt_list.append(self.client.create_packet(123, i, 1, True, msgx[256*i:256*(i+1)]))
-                self.client.send(self.server, 123, pkt_list, False)
+                    pkt_list.append(self.client.create_packet(self.round_number, i, 1, True, msgx[256*i:256*(i+1)]))
+                self.client.send(self.server, self.round_number, pkt_list, False)
             elif self.config["EnableSwitch"] == 1:
                 for i in range(msg2.pkt_num):
-                    pkt_list.append(self.client.create_packet(123, i, 1, False, msgx[256*i:256*(i+1)]))
-                self.client.send(self.server, 123, pkt_list, True)
+                    pkt_list.append(self.client.create_packet(self.round_number, i, 1, False, msgx[256*i:256*(i+1)]))
+                self.client.send(self.server, self.round_number, pkt_list, True)
             else:
                 for i in range(msg2.pkt_num):
-                    pkt_list.append(self.client.create_packet(123, i, 1, False, msgx[256*i:256*(i+1)]))
-                self.client.send(self.server2, 123, pkt_list, True) 
+                    pkt_list.append(self.client.create_packet(self.round_number, i, 1, False, msgx[256*i:256*(i+1)]))
+                self.client.send(self.server2, self.round_number, pkt_list, True) 
 
     # This function is for server receive tensor from client (or switch)
     def wait_for_recv(self, msg2: Message):
@@ -451,6 +455,13 @@ class SWITCHCommManager(BaseCommunicationManager):
                     observer.receive_message(msg_type, msg)
                     MLOpsProfilerEvent.log_to_wandb({"MessageHandlerTime": time.time() - _message_handler_start_time})
                 MLOpsProfilerEvent.log_to_wandb({"BusyTime": time.time() - busy_time_start_time})
+
+                if self.client_id == 0:
+                    self.recv_cnt += 1
+                    if self.recv_cnt == self.config["ClientNum"]:
+                        self.recv_cnt += 1
+                        self.round_number += 1
+
                 lock.release()
             time.sleep(0.0001)
         MLOpsProfilerEvent.log_to_wandb({"TotalTime": time.time() - start_listening_time})
