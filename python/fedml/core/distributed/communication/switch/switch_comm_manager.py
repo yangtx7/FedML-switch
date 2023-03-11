@@ -28,6 +28,8 @@ import queue
 
 from .python_io.server import Server
 from .python_io.client import Client
+from .python_io.switch import Switch
+from .python_io.node import Node
 
 import yaml
 
@@ -53,7 +55,10 @@ class SWITCHCommManager(BaseCommunicationManager):
         with open("./config/SwitchFL_config.yaml", 'r') as stream:
             self.config = yaml.safe_load(stream)
 
-        self.init_connection()
+        if self.client_id == 0:
+            self.server_init_connection()
+        else:
+            self.client_init_connection()
        
         self.opts = [
             ("grpc.max_send_message_length", 1000 * 1024 * 1024),
@@ -78,84 +83,128 @@ class SWITCHCommManager(BaseCommunicationManager):
         self.is_running = True
         logging.info("grpc server started. Listening on port " + str(port))
 
-    def init_connection(self):
-        if self.client_id == 0:
-            self.node_type = "server"
-            self.recv_thread = [0 for i in range(self.client_num + 1)]
+    def server_init_connection(self):
+        self.node_type = "server"
+
+        if self.config["EnableSwitch"] == 0:
+            self.recv_thread = [None for i in range(self.client_num + 1)]
             self.recv_queue = [queue.Queue() for i in range(self.client_num + 1)]
             self.server = [None]
             self.client = [None]
 
-            if self.config["EnableSwitch"] == 1:
-                self.switchsend = [0 for i in range(self.config["SwitchNum"])]
-                self.switchrecv = [0 for i in range(self.config["SwitchNum"])]
-                self.switchtot = [0 for i in range(self.config["SwitchNum"])]
-                # Calculate the number of clients each switch link with
-                for i in range(1, self.client_num+1):
-                    self.switchtot[self.config["NetworkTopo"][i-1]] += 1
-
-            # Establish CommLib links
-            if self.config["EnableSwitch"] == 0:
-                for i in range(1, self.client_num+1):
-                    self.server.append(Server(self.config["ServerIPAddr"], 
-                                              self.config["CommLibBasePort"]+0+5*i, 
-                                              self.config["CommLibBasePort"]+1+5*i, 
-                                              "127.0.0.1:"+str(self.config["CommLibBasePort"]+1+5*i), 
-                                              0, False, 
-                                              "lo"))
-                    self.client.append(Client(self.config["ClientIPAddr"][i-1], 
-                                              self.config["CommLibBasePort"]+3+5*i, 
-                                              self.config["CommLibBasePort"]+4+5*i, 
-                                              "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+5*i), 
-                                              i, True))
-            else:
-                # TODO：each switch can only match ONE Server
-                for i in range(1, self.client_num + 1):
-                    self.server.append(Server(self.config["ServerIPAddr"], 
-                                              self.config["CommLibBasePort"]+0+5*i, 
-                                              self.config["CommLibBasePort"]+1+5*i, 
-                                              "127.0.0.1:"+str(self.config["CommLibBasePort"]+1+5*i), 
-                                              0, False, 
-                                              self.config["ServerSwitchIFace"][self.config["NetworkTopo"][i-1]]))
-                    self.client.append(Client(self.config["ClientIPAddr"][i-1], 
-                                              self.config["CommLibBasePort"]+0+5*i, 
-                                              self.config["CommLibBasePort"]+1+5*i, 
-                                              "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+5*i), 
-                                              i, True))
+            for i in range(1, self.client_num+1):
+                self.server.append(Server(self.config["ServerIPAddr"], 
+                                          self.config["CommLibBasePort"]+0+6*i, 
+                                          self.config["CommLibBasePort"]+1+6*i, 
+                                          "127.0.0.1:"+str(self.config["CommLibBasePort"]+1+6*i), 
+                                          0, False, 
+                                          "lo"))
+                self.client.append(Client(self.config["ClientIPAddr"][i-1], 
+                                          self.config["CommLibBasePort"]+3+6*i, 
+                                          self.config["CommLibBasePort"]+4+6*i, 
+                                          "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+6*i), 
+                                          i, True))
         else:
-            self.node_type = "client"
+            # TODO : by default EnableSwitch=2, for EnableSwitch=2 need to be completed
+            # some counters used in send/recv logic
+            self.switchsend = [0 for i in range(self.config["SwitchNum"])]
+            self.switchsend2 = [0 for i in range(self.config["SwitchNum"])]
+            self.switchrecv = [0 for i in range(self.config["SwitchNum"])]
+            self.switchtot = [0 for i in range(self.config["SwitchNum"])]
 
-            self.recv_thread = 0
-            self.recv_queue = queue.Queue()
-            i = self.client_id
+            for i in range(1, self.client_num+1):
+                self.switchtot[self.config["NetworkTopo"][i-1]] += 1
 
-            # Establish CommLib links
-            if self.config["EnableSwitch"] == 0:
-                self.server = Server(self.config["ServerIPAddr"], 
-                                    self.config["CommLibBasePort"]+0+5*i, 
-                                    self.config["CommLibBasePort"]+1+5*i, 
-                                    "127.0.0.1:"+str(self.config["CommLibBasePort"]+1+5*i), 
-                                    0, True)
-                self.client = Client(self.config["ClientIPAddr"][i-1], 
-                                    self.config["CommLibBasePort"]+3+5*i, 
-                                    self.config["CommLibBasePort"]+4+5*i, 
-                                    "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+5*i), 
-                                    i, False, 
-                                    "lo")
-            else:
-                self.server = Server(self.config["ServerIPAddr"], 
-                                    self.config["CommLibBasePort"]+0+5*i, 
-                                    self.config["CommLibBasePort"]+1+5*i, 
-                                    "127.0.0.1:"+str(self.config["CommLibBasePort"]+1+5*i), 
-                                    0, True)
-                self.client = Client(self.config["ClientIPAddr"][i-1], 
-                                    self.config["CommLibBasePort"]+0+5*i, 
-                                    self.config["CommLibBasePort"]+1+5*i, 
-                                    "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+5*i), 
-                                    i, False, 
-                                    self.config["ClientSwitchIFace"][i-1])
+            self.switch : List[Switch] = []
+            self.server : List[Server] = []
 
-    def recv_tensor(self, typ: int, pkt_num: int, server: Server, client :Client, msg_q: queue.Queue):
+            self.recv_queue = [queue.Queue() for i in range(self.config["SwitchNum"])]
+            self.recv_thread = [None for i in range(self.config["SwitchNum"])]
+
+            self.client = [None for i in range(self.client_num + 1)]
+
+            for i in range(self.config["SwitchNum"]):
+                self.switch.append(Switch(
+                    node_id=100+i, # plus 100 to avoid ID conflict
+                    ip_addr="127.0.0.1",
+                    rx_port=self.config["SwitchPort"][i],
+                    tx_port=self.config["SwitchPort"][i],
+                    rpc_addr=""
+                ))
+                self.server.append(Server(
+                    node_id=200+i, # plus 200 to avoid ID conflict
+                    ip_addr="127.0.0.1",
+                    rx_port=self.config["CommLibBasePort"]+0+6*i,
+                    tx_port=self.config["CommLibBasePort"]+1+6*i,
+                    rpc_addr="127.0.0.1:"+str(self.config["CommLibBasePort"]+2+6*i),
+                    is_remote_node=False,
+                    iface="lo"                    
+                ))
+
+            for i in range(1, self.client_num + 1):
+                self.client[i] = Client(ip_addr=self.config["ClientIPAddr"][i-1], 
+                                        rx_port=self.config["CommLibBasePort"]+3+6*i, 
+                                        tx_port=self.config["CommLibBasePort"]+4+6*i, 
+                                        rpc_addr="127.0.0.1:"+str(self.config["CommLibBasePort"]+5+6*i), 
+                                        node_id=i,
+                                        is_remote_node=True)
+
+                self.switch[self.config["NetworkTopo"][i-1]].add_child(self.client[i])         
+
+                
+    def client_init_connection(self):
+        self.node_type = "client"
+        self.recv_thread = 0
+        self.recv_queue = queue.Queue()
+        i = self.client_id
+
+        # Establish CommLib links
+        if self.config["EnableSwitch"] == 0:
+            self.server = Server(self.config["ServerIPAddr"], 
+                                self.config["CommLibBasePort"]+0+6*i, 
+                                self.config["CommLibBasePort"]+1+6*i, 
+                                "127.0.0.1:"+str(self.config["CommLibBasePort"]+1+6*i), 
+                                0, True)
+            self.client = Client(self.config["ClientIPAddr"][i-1], 
+                                self.config["CommLibBasePort"]+3+6*i, 
+                                self.config["CommLibBasePort"]+4+6*i, 
+                                "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+6*i), 
+                                i, False, 
+                                "lo")
+            
+        if self.config["EnableSwitch"] == 1:
+            self.server = Server(self.config["ServerIPAddr"], 
+                                self.config["CommLibBasePort"]+0+6*i, 
+                                self.config["CommLibBasePort"]+1+6*i, 
+                                "127.0.0.1:"+str(self.config["CommLibBasePort"]+1+6*i), 
+                                0, True)
+            self.client = Client(self.config["ClientIPAddr"][i-1], 
+                                self.config["CommLibBasePort"]+0+6*i, 
+                                self.config["CommLibBasePort"]+1+6*i, 
+                                "127.0.0.1:"+str(self.config["CommLibBasePort"]+0+6*i), 
+                                i, False, 
+                                self.config["ClientSwitchIFace"][i-1])
+            
+        if self.config["EnableSwitch"] == 2:
+            self.server = Server(self.config["ServerIPAddr"], 
+                                self.config["CommLibBasePort"]+0+6*self.config["NetworkTopo"][self.client_id-1], 
+                                self.config["CommLibBasePort"]+1+6*self.config["NetworkTopo"][self.client_id-1], 
+                                "127.0.0.1:"+str(self.config["CommLibBasePort"]+2+6*self.config["NetworkTopo"][self.client_id-1]), 
+                                200+self.config["NetworkTopo"][self.client_id-1], True)
+            self.server2 = Server(self.config["ServerIPAddr"], 
+                                self.config["SwitchPort"][self.config["NetworkTopo"][self.client_id-1]], 
+                                self.config["CommLibBasePort"]+1+6*self.config["NetworkTopo"][self.client_id-1], 
+                                "127.0.0.1:"+str(self.config["CommLibBasePort"]+2+6*self.config["NetworkTopo"][self.client_id-1]), 
+                                200+self.config["NetworkTopo"][self.client_id-1], True)
+            self.client = Client(self.config["ClientIPAddr"][i-1], 
+                                self.config["CommLibBasePort"]+3+6*i, 
+                                self.config["CommLibBasePort"]+4+6*i, 
+                                "127.0.0.1:"+str(self.config["CommLibBasePort"]+5+6*i), 
+                                i, False, 
+                                "lo")
+
+
+    def recv_tensor(self, typ: int, pkt_num: int, server: Node, client: Node, msg_q: queue.Queue):
         if typ == 0:
             pkt_list = server.receive(client, 123, pkt_num)
         else:
@@ -192,7 +241,8 @@ class SWITCHCommManager(BaseCommunicationManager):
         if self.node_type == "client" and msg2.type == "3":
             active_commlib = 1
 
-        if active_commlib == 1:
+        # TODO : This part can be optimized
+        if (self.node_type == "server" and (msg2.type == "1" or msg2.type == "2")) or (self.node_type == "client" and msg2.type == "3"):
             msgx = self.extract_tensor(msg2)
 
 
@@ -220,10 +270,9 @@ class SWITCHCommManager(BaseCommunicationManager):
         # SEND
         if active_commlib == 1:
             self.send_tensor(msg2, msgx)
-
-        # For server, wait for next RECV
-        if self.node_type == "server" and active_commlib == 1:
-            self.wait_for_recv(msg2)
+            if self.node_type == "server":
+                self.wait_for_recv(msg2)
+            
 
 
     def extract_tensor(self, msg2: Message):
@@ -250,6 +299,7 @@ class SWITCHCommManager(BaseCommunicationManager):
         app = 256 - (np.size(msgx) % 256)
         msgx = np.concatenate((msgx, np.zeros(shape=app)))
         msg2.pkt_num = np.size(msgx) // 256
+
         
         print(">>> LENGTH of parameter: ", np.size(msgx))
         if (self.node_type == "server" and self.config["EnableSwitch"] == 1):
@@ -262,56 +312,72 @@ class SWITCHCommManager(BaseCommunicationManager):
     def send_tensor(self, msg2: Message, msgx):
         receiver_id = msg2.get_receiver_id()
         pkt_list = []
-
         sleep(0.1)
         
-        if self.config["EnableSwitch"] == 0:
-            if self.node_type == "server":
+        if self.node_type == "server":
+            if self.config["EnableSwitch"] == 0:
                 for i in range(msg2.pkt_num):
-                    pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, True, msgx[256*i:256*(i+1)]))
+                    pkt_list.append(self.server[receiver_id].create_packet(123, i, 1, True, msgx[256*i:256*(i+1)]))
                 self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
-            if self.node_type == "client":    
+            else:
                 for i in range(msg2.pkt_num):
-                    pkt_list.append(self.client.create_packet(123, i, 0, True, msgx[256*i:256*(i+1)]))
+                    pkt_list.append(self.server[self.config["NetworkTopo"][receiver_id-1]].create_packet(123, i, 1, False, msgx[256*i:256*(i+1)], True))
+                self.server[self.config["NetworkTopo"][receiver_id-1]].send(self.switch[self.config["NetworkTopo"][receiver_id-1]], 123, pkt_list)
+
+            
+
+        if self.node_type == "client":   
+            # For client it doesn't need multicast, even if it is connected to a switch 
+
+            if self.config["EnableSwitch"] == 0:
+                for i in range(msg2.pkt_num):
+                    pkt_list.append(self.client.create_packet(123, i, 1, True, msgx[256*i:256*(i+1)]))
                 self.client.send(self.server, 123, pkt_list, False)
-        else:
-            # TODO: Need to modify to fit the number of switch
-
-            if self.node_type == "server":
+            elif self.config["EnableSwitch"] == 1:
                 for i in range(msg2.pkt_num):
-                    pkt_list.append(self.server[receiver_id].create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
-                self.server[receiver_id].send(self.client[receiver_id], 123, pkt_list)
-
-            if self.node_type == "client":    
-                for i in range(msg2.pkt_num):
-                    pkt_list.append(self.client.create_packet(123, i, 0, False, msgx[256*i:256*(i+1)]))
+                    pkt_list.append(self.client.create_packet(123, i, 1, False, msgx[256*i:256*(i+1)]))
                 self.client.send(self.server, 123, pkt_list, True)
+            else:
+                for i in range(msg2.pkt_num):
+                    pkt_list.append(self.client.create_packet(123, i, 1, False, msgx[256*i:256*(i+1)]))
+                self.client.send(self.server2, 123, pkt_list, True) 
 
+    # This function is for server receive tensor from client (or switch)
     def wait_for_recv(self, msg2: Message):
         receiver_id = msg2.get_receiver_id()
 
+        enable_wait_recv = 0
+
         if self.config["EnableSwitch"] == 0:
+            enable_wait_recv = 1
+        else:
+            if self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] == 0:
+                enable_wait_recv = 1
+            self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] += 1
+            if self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] == self.switchtot[self.config["NetworkTopo"][receiver_id-1]]:
+                self.switchsend2[self.config["NetworkTopo"][receiver_id-1]] = 0
+
+        if enable_wait_recv == 1:
             print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "->", msg2.get_sender_id())
 
-            self.recv_thread[msg2.get_receiver_id()] = threading.Thread(
-            target=self.recv_tensor, 
-            args=(0,
-                  msg2.pkt_num, 
-                  self.server[msg2.get_receiver_id()], 
-                  self.client[msg2.get_receiver_id()], 
-                  self.recv_queue[msg2.get_receiver_id()]))
-            self.recv_thread[msg2.get_receiver_id()].start()
-        else:
-            print(">>>COMMLIB RECV :", msg2.get_receiver_id(), "switch ID", self.config["NetworkTopo"][receiver_id-1], "->", msg2.get_sender_id())
-
-            self.recv_thread[self.config["NetworkTopo"][receiver_id-1]] = threading.Thread(
+            if self.config["EnableSwitch"] == 0:
+                self.recv_thread[msg2.get_receiver_id()] = threading.Thread(
                 target=self.recv_tensor, 
                 args=(0,
                     msg2.pkt_num, 
                     self.server[msg2.get_receiver_id()], 
                     self.client[msg2.get_receiver_id()], 
-                    self.recv_queue[self.config["NetworkTopo"][receiver_id-1]]))
-            self.recv_thread[self.config["NetworkTopo"][receiver_id-1]].start()
+                    self.recv_queue[msg2.get_receiver_id()]))
+                self.recv_thread[msg2.get_receiver_id()].start()
+            else: 
+                self.recv_thread[self.config["NetworkTopo"][msg2.get_receiver_id()-1]] = threading.Thread(
+                target=self.recv_tensor, 
+                args=(0,
+                    msg2.pkt_num, 
+                    self.server[self.config["NetworkTopo"][msg2.get_receiver_id()-1]], 
+                    self.switch[self.config["NetworkTopo"][msg2.get_receiver_id()-1]], 
+                    self.recv_queue[self.config["NetworkTopo"][msg2.get_receiver_id()-1]]))
+                self.recv_thread[self.config["NetworkTopo"][msg2.get_receiver_id()-1]].start()
 
     def add_observer(self, observer: Observer):
         self._observers.append(observer)
@@ -363,6 +429,7 @@ class SWITCHCommManager(BaseCommunicationManager):
                             msgx = self.recv_queue[self.config["NetworkTopo"][msg.get_sender_id()-1]].get()
 
                             # multiple the parameters by the number of clients that switch has
+                            # TODO : for pruning case, it must mutliply some coefficient...
                             msgx *= self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]
                         
                         else:

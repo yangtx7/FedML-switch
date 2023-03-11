@@ -1,23 +1,35 @@
-# the ID of server is 0, and the ID of clients start from 1
+# the ID of server is 0, and the ID of clients starts from 1
+# the ID of switches start from 0
+
 # The base port of communication library
 CommLibBasePort : 51500 
-# EnableSwitch = 0 for not using programable switch
-# EnableSwitch = 1 for using physical programable switch
-# EnableSwitch = 2 for using mocking programable switch
-EnableSwitch : 0 
-ClientNum : 1
+
+# EnableSwitch = 0 for not using programmable switch
+# EnableSwitch = 1 for using physical programmable switch
+# EnableSwitch = 2 for using mocking programmable switch
+EnableSwitch : 2
+ClientNum : 2
 SwitchNum : 1
 ServerIPAddr : "127.0.0.1"
 ClientIPAddr : # According to the order of client ID, starting from Client ID 1
 - "127.0.0.1"
 - "127.0.0.1"
 - "127.0.0.1"
-ServerSwitchIFace : # The Ethernet port connecting server and each switch, start from Switch ID 0
+
+# The Ethernet port connecting server and each switch, start from Switch ID 0 (physical switch)
+ServerSwitchIFace : 
 - "veth1"
 - "veth2"
-ClientSwitchIFace : # The Ethernet port connecting each client and its switch, start from Client ID 1
+
+# The Ethernet port connecting each client and its switch, start from Client ID 1 (physical switch)
+ClientSwitchIFace : 
 - "veth4"
 - "veth5"
+
+# The port of mocking switch, starting from switch ID 0 (we assume the IP address of mocking switch is 127.0.0.1)
+SwitchPort :
+- 30000
+
 NetworkTopo : # Specifying which switch each client is belong to, start from Client ID 1
 - 0
-- 1
+- 0
