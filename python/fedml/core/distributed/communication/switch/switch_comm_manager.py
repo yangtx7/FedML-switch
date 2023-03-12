@@ -42,6 +42,7 @@ class SWITCHCommManager(BaseCommunicationManager):
         topic="fedml",
         client_id=0,
         client_num=0,
+        model=None
     ):
         # host is the ip address of server
         self.host = host

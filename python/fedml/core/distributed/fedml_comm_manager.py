@@ -9,7 +9,7 @@ from ..mlops.mlops_configs import MLOpsConfigs
 
 
 class FedMLCommManager(Observer):
-    def __init__(self, args, comm=None, rank=0, size=0, backend="MPI"):
+    def __init__(self, args, comm, rank, size, backend, model=None):
         self.args = args
         self.size = size
         self.rank = int(rank)
@@ -17,6 +17,7 @@ class FedMLCommManager(Observer):
         self.comm = comm
         self.com_manager = None
         self.message_handler_dict = dict()
+        self.model = model
         self._init_manager()
 
     def register_comm_manager(self, comm_manager: BaseCommunicationManager):
@@ -208,7 +209,7 @@ class FedMLCommManager(Observer):
             HOST = "0.0.0.0"
             PORT = CommunicationConstants.GRPC_BASE_PORT + self.rank
             self.com_manager = SWITCHCommManager(
-                HOST, PORT, ip_config_path=self.args.grpc_ipconfig_path, client_id=self.rank, client_num=self.size,
+                HOST, PORT, ip_config_path=self.args.grpc_ipconfig_path, client_id=self.rank, client_num=self.size, model=self.model
             )
         else:
             if self.com_manager is None:

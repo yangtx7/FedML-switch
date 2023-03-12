@@ -33,11 +33,11 @@ def init_client(
         if args.proc_rank_in_silo == 0:
 
             client_manager = get_client_manager_master(
-                args, trainer_dist_adapter, comm, client_rank, client_num, backend
+                args, trainer_dist_adapter, comm, client_rank, client_num, backend, model
             )
 
         else:
-            client_manager = get_client_manager_salve(args, trainer_dist_adapter)
+            client_manager = get_client_manager_salve(args, trainer_dist_adapter, model)
 
     elif args.scenario == FEDML_CROSS_SILO_SCENARIO_HORIZONTAL:
 
@@ -73,11 +73,11 @@ def get_trainer_dist_adapter(
     )
 
 
-def get_client_manager_master(args, trainer_dist_adapter, comm, client_rank, client_num, backend):
-    return ClientMasterManager(args, trainer_dist_adapter, comm, client_rank, client_num, backend)
+def get_client_manager_master(args, trainer_dist_adapter, comm, client_rank, client_num, backend, model):
+    return ClientMasterManager(args, trainer_dist_adapter, comm, client_rank, client_num, backend, model)
 
 
-def get_client_manager_salve(args, trainer_dist_adapter):
+def get_client_manager_salve(args, trainer_dist_adapter, model):
     from .fedml_client_slave_manager import ClientSlaveManager
 
-    return ClientSlaveManager(args, trainer_dist_adapter)
+    return ClientSlaveManager(args, trainer_dist_adapter, model)

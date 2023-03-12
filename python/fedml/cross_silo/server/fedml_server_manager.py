@@ -16,9 +16,9 @@ class FedMLServerManager(FedMLCommManager):
     RUN_FINISHED_STATUS_FLAG = "FINISHED"
 
     def __init__(
-            self, args, aggregator, comm=None, client_rank=0, client_num=0, backend="MQTT_S3",
+            self, args, aggregator, comm, client_rank, client_num, backend, model
     ):
-        super().__init__(args, comm, client_rank, client_num, backend)
+        super().__init__(args, comm, client_rank, client_num, backend, model)
         self.args = args
         self.aggregator = aggregator
         self.round_num = args.comm_round

@@ -4,7 +4,7 @@ import torch.distributed as dist
 
 
 class ClientSlaveManager:
-    def __init__(self, args, trainer_dist_adapter):
+    def __init__(self, args, trainer_dist_adapter, model=None):
         self.trainer_dist_adapter = trainer_dist_adapter
         self.args = args
         self.round_idx = 0

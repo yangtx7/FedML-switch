@@ -18,8 +18,8 @@ class ClientMasterManager(FedMLCommManager):
     ONLINE_STATUS_FLAG = "ONLINE"
     RUN_FINISHED_STATUS_FLAG = "FINISHED"
 
-    def __init__(self, args, trainer_dist_adapter, comm=None, rank=0, size=0, backend="MPI"):
-        super().__init__(args, comm, rank, size, backend)
+    def __init__(self, args, trainer_dist_adapter, comm=None, rank=0, size=0, backend="MPI", model=None):
+        super().__init__(args, comm, rank, size, backend, model)
         self.trainer_dist_adapter = trainer_dist_adapter
         self.args = args
 

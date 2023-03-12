@@ -7,7 +7,7 @@ CommLibBasePort : 51500
 # EnableSwitch = 0 for not using programmable switch
 # EnableSwitch = 1 for using physical programmable switch
 # EnableSwitch = 2 for using mocking programmable switch
-EnableSwitch : 2
+EnableSwitch : 0
 ClientNum : 2
 SwitchNum : 1
 ServerIPAddr : "127.0.0.1"

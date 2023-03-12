@@ -38,5 +38,5 @@ def init_server(
 
     # start the distributed training
     backend = args.backend
-    server_manager = FedMLServerManager(args, aggregator, comm, rank, worker_num, backend)
+    server_manager = FedMLServerManager(args, aggregator, comm, rank, worker_num, backend, model)
     server_manager.run()
