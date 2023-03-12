@@ -436,7 +436,7 @@ class SWITCHCommManager(BaseCommunicationManager):
 
                             # multiple the parameters by the number of clients that switch has
                             # TODO : for pruning case, it must mutliply some coefficient...
-                            msgx *= self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]
+                            # msgx *= self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]
                         
                         else:
                             # generate a packet padded by zeros to imitate a normal msgx.
