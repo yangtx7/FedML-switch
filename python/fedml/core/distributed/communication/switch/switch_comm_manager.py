@@ -115,6 +115,9 @@ class SWITCHCommManager(BaseCommunicationManager):
             self.switchrecv = [0 for i in range(self.config["SwitchNum"])]
             self.switchtot = [0 for i in range(self.config["SwitchNum"])]
 
+            self.switchmsgx = [None for i in range(self.config["SwitchNum"])]
+            self.switchroundnumber = [0 for i in range(self.config["SwitchNum"])]
+
             for i in range(1, self.client_num+1):
                 self.switchtot[self.config["NetworkTopo"][i-1]] += 1
 
@@ -216,9 +219,9 @@ class SWITCHCommManager(BaseCommunicationManager):
         for i in range(pkt_num):
             if flg == 0:
                 flg = 1
-                msgx = np.array(pkt_list[i].tensor)
+                msgx = np.array(pkt_list[i].tensor/pkt_list[i].aggregate_num)
             else:
-                msgx = np.concatenate((msgx, np.array(pkt_list[i].tensor)))
+                msgx = np.concatenate((msgx, np.array(pkt_list[i].tensor/pkt_list[i].aggregate_num)))
         msg_q.put(msgx)
 
     def send_message(self, msg: Message):
@@ -433,15 +436,34 @@ class SWITCHCommManager(BaseCommunicationManager):
                         if self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] == 0:
 
                             self.recv_thread[self.config["NetworkTopo"][msg.get_sender_id()-1]].join()
+
+                            # TODO : need to * 2
                             msgx = self.recv_queue[self.config["NetworkTopo"][msg.get_sender_id()-1]].get()
 
-                            # multiple the parameters by the number of clients that switch has
+                            if self.config["ParameterUploadStrategy"] == 0:
+                                # multiple the parameters by the number of clients that switch has
+                                msgx *= self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]
+                            else:
+                                self.switchmsgx[self.config["NetworkTopo"][msg.get_sender_id()-1]] = msgx
+                                self.switchroundnumber[self.config["NetworkTopo"][msg.get_sender_id()-1]] += 1
+                            
                             # TODO : for pruning case, it must mutliply some coefficient...
                             # msgx *= self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]
                         
                         else:
+                            if self.config["ParameterUploadStrategy"] == 0:
+                                msgx = np.zeros(msg.pkt_num * 256)
+                            else:
+                                while (1):
+                                    sleep(0.1)
+                                    if self.switchroundnumber[self.config["NetworkTopo"][msg.get_sender_id()-1]] == self.round_number:
+                                        break
+                                msgx = self.switchmsgx[self.config["NetworkTopo"][msg.get_sender_id()-1]]
+
                             # generate a packet padded by zeros to imitate a normal msgx.
-                            msgx = np.zeros(msg.pkt_num * 256)
+                            # TODO : need to modify
+                            
+                            
 
                         self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] += 1
                         if self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] == self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]:

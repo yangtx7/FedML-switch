@@ -7,7 +7,7 @@ CommLibBasePort : 51500
 # EnableSwitch = 0 for not using programmable switch
 # EnableSwitch = 1 for using physical programmable switch
 # EnableSwitch = 2 for using mocking programmable switch
-EnableSwitch : 0
+EnableSwitch : 2
 ClientNum : 2
 SwitchNum : 1
 ServerIPAddr : "127.0.0.1"
@@ -33,3 +33,7 @@ SwitchPort :
 NetworkTopo : # Specifying which switch each client is belong to, start from Client ID 1
 - 0
 - 0
+
+# Decide the way switch_comm_manager upload parameter to aggregator
+# 0->(3, 0, 0) 1->(1, 1, 1)
+ParameterUploadStrategy : 0
