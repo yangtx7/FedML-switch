@@ -1,5 +1,5 @@
 import numpy as np
-from packet import Packet, DataType
+from packet import Packet
 
 class Aggr:
     def __init__(self, id: int, switch) -> None:
@@ -44,11 +44,11 @@ class Aggr:
                 pkt.round_id, self.round_id = self.round_id, pkt.round_id
                 pkt.segment_id, self.segment_id = self.segment_id, pkt.segment_id
                 self.bitmap = node_bitmap
-                pkt.aggregate_num = self.aggregate_count
-                self.aggregate_count = 1
+                pkt.aggregate_num, self.aggregate_count = self.aggregate_count, pkt.aggregate_num
                 return 1
             else:
                 self.acquire(pkt)
+                self.aggregate_count = pkt.aggregate_num
                 self.data = pkt.tensor
                 self.bitmap = node_bitmap
                 if aggregate_finish_bitmap == node_bitmap:
@@ -68,6 +68,7 @@ class Aggr:
 
             if self.bitmap == aggregate_finish_bitmap:
                 pkt.aggregate_num = self.aggregate_count
+                pkt.tensor = self.data
                 self.release()
                 return 1
             else:
