@@ -3,10 +3,11 @@ from client import Client
 from switch import Switch
 import numpy as np
 import time
-from multiprocessing import Process
+# from multiprocessing import Process
+from threading import Thread
 
 round_id = 100
-pkt_num = 100
+pkt_num = 1000
 node_num = 5
 
 start_port = 50000
@@ -32,8 +33,10 @@ client_configs = [
     } for i in range(node_num)
 ]
 
+data = np.random.rand((256 * pkt_num)).astype(np.float32)
 
 def client_send(index: int):
+    global data
     server = Server(
         node_id=server_node_id,
         ip_addr=server_ip_addr,
@@ -55,7 +58,6 @@ def client_send(index: int):
         is_remote_node=False,
         # iface="veth1"
     )
-    data = np.random.rand((256 * pkt_num)).astype(np.float32)
     packet_list = [client.create_packet(
         round_id=round_id,
         segment_id=i,
@@ -63,7 +65,6 @@ def client_send(index: int):
         bypass=False,
         data=data[256*i: 256*(i+1)]
     ) for i in range(pkt_num)]
-    print(data[0:5])
     client.send(
         server=server,
         round_id=round_id,
@@ -105,14 +106,18 @@ def server_receive():
         round_id=round_id,
         total_packet_num=pkt_num
     )
-    print(packet_list[0].tensor[0:5])
+    for i, pkt in enumerate(packet_list):
+        expect = data[i*256: (i+1) * 256] * node_num
+        diff = (pkt.tensor - expect).max()
+        if diff > 1e-6:
+            print("diff")
+    print("server recv finish")
 
-
-p1 = Process(target=server_receive)
+p1 = Thread(target=server_receive)
 p1.start()
-time.sleep(0.5)
+time.sleep(0.1)
 
 for i in range(node_num):
-    Process(target=client_send, args=(i,)).start()
+    Thread(target=client_send, args=(i,)).start()
 
 p1.join()

@@ -41,6 +41,8 @@ class Switch:
                 for node in group.nodes.values():
                     self.log("multicast to node=%d" % (node.id))
                     sock.sendto(pkt.buffer, (node.ip_addr, node.rx_port))
+                ack_pkt = pkt.gen_ack_packet()
+                sock.sendto(ack_pkt, (group.ps.ip_addr, group.ps.tx_port))
 
             else:
                 # 聚合

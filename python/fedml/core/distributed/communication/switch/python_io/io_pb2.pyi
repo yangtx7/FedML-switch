@@ -30,12 +30,14 @@ class PacketLoss(_message.Message):
 class Retransmission(_message.Message):
     __slots__ = []
     class Request(_message.Message):
-        __slots__ = ["data", "node_id", "round_id"]
+        __slots__ = ["data", "meta", "node_id", "round_id"]
         DATA_FIELD_NUMBER: _ClassVar[int]
+        META_FIELD_NUMBER: _ClassVar[int]
         NODE_ID_FIELD_NUMBER: _ClassVar[int]
         ROUND_ID_FIELD_NUMBER: _ClassVar[int]
         data: _containers.RepeatedScalarFieldContainer[bytes]
+        meta: bytes
         node_id: int
         round_id: int
-        def __init__(self, round_id: _Optional[int] = ..., node_id: _Optional[int] = ..., data: _Optional[_Iterable[bytes]] = ...) -> None: ...
+        def __init__(self, round_id: _Optional[int] = ..., node_id: _Optional[int] = ..., meta: _Optional[bytes] = ..., data: _Optional[_Iterable[bytes]] = ...) -> None: ...
     def __init__(self) -> None: ...

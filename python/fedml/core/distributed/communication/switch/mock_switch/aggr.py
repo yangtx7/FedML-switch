@@ -1,5 +1,5 @@
 import numpy as np
-from packet import Packet
+from packet import Packet, element_per_packet
 
 class Aggr:
     def __init__(self, id: int, switch) -> None:
@@ -8,7 +8,7 @@ class Aggr:
         self.reset()
 
     def reset(self):
-        self.data = np.zeros(256, dtype=np.int32)
+        self.data = np.zeros(element_per_packet, dtype=np.int32)
         self.round_id = -1
         self.segment_id = -1
         self.is_busy = False

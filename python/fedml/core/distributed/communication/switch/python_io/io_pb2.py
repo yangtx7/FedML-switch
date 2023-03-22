@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x08io.proto\"L\n\x0eRetransmission\x1a:\n\x07Request\x12\x10\n\x08round_id\x18\x01 \x01(\x05\x12\x0f\n\x07node_id\x18\x02 \x01(\x05\x12\x0c\n\x04\x64\x61ta\x18\x63 \x03(\x0c\"{\n\nPacketLoss\x1a\x44\n\x07Request\x12\x10\n\x08round_id\x18\x01 \x01(\x05\x12\x0f\n\x07node_id\x18\x02 \x01(\x05\x12\x16\n\x0emax_segment_id\x18\x03 \x01(\x05\x1a\'\n\x08Response\x12\x1b\n\x13missing_packet_list\x18\x01 \x03(\x05\"\x06\n\x04Null2}\n\nSwitchmlIO\x12\x30\n\x0eRetransmission\x12\x17.Retransmission.Request\x1a\x05.Null\x12=\n\x10ReadMissingSlice\x12\x13.PacketLoss.Request\x1a\x14.PacketLoss.Responseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x08io.proto\"Z\n\x0eRetransmission\x1aH\n\x07Request\x12\x10\n\x08round_id\x18\x01 \x01(\x05\x12\x0f\n\x07node_id\x18\x02 \x01(\x05\x12\x0c\n\x04meta\x18\x62 \x01(\x0c\x12\x0c\n\x04\x64\x61ta\x18\x63 \x03(\x0c\"{\n\nPacketLoss\x1a\x44\n\x07Request\x12\x10\n\x08round_id\x18\x01 \x01(\x05\x12\x0f\n\x07node_id\x18\x02 \x01(\x05\x12\x16\n\x0emax_segment_id\x18\x03 \x01(\x05\x1a\'\n\x08Response\x12\x1b\n\x13missing_packet_list\x18\x01 \x03(\x05\"\x06\n\x04Null2}\n\nSwitchmlIO\x12\x30\n\x0eRetransmission\x12\x17.Retransmission.Request\x1a\x05.Null\x12=\n\x10ReadMissingSlice\x12\x13.PacketLoss.Request\x1a\x14.PacketLoss.Responseb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'io_pb2', globals())
@@ -21,17 +21,17 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   _RETRANSMISSION._serialized_start=12
-  _RETRANSMISSION._serialized_end=88
+  _RETRANSMISSION._serialized_end=102
   _RETRANSMISSION_REQUEST._serialized_start=30
-  _RETRANSMISSION_REQUEST._serialized_end=88
-  _PACKETLOSS._serialized_start=90
-  _PACKETLOSS._serialized_end=213
-  _PACKETLOSS_REQUEST._serialized_start=104
-  _PACKETLOSS_REQUEST._serialized_end=172
-  _PACKETLOSS_RESPONSE._serialized_start=174
-  _PACKETLOSS_RESPONSE._serialized_end=213
-  _NULL._serialized_start=215
-  _NULL._serialized_end=221
-  _SWITCHMLIO._serialized_start=223
-  _SWITCHMLIO._serialized_end=348
+  _RETRANSMISSION_REQUEST._serialized_end=102
+  _PACKETLOSS._serialized_start=104
+  _PACKETLOSS._serialized_end=227
+  _PACKETLOSS_REQUEST._serialized_start=118
+  _PACKETLOSS_REQUEST._serialized_end=186
+  _PACKETLOSS_RESPONSE._serialized_start=188
+  _PACKETLOSS_RESPONSE._serialized_end=227
+  _NULL._serialized_start=229
+  _NULL._serialized_end=235
+  _SWITCHMLIO._serialized_start=237
+  _SWITCHMLIO._serialized_end=362
 # @@protoc_insertion_point(module_scope)

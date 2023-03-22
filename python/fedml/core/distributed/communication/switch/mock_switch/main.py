@@ -2,18 +2,29 @@ from switch import Switch
 from node import Node
 from group import Group
 
-node_num = 2
-base_port = 51500
+if __name__ == "__main__":
+    group_num = 2
+    node_config = [
+        [1],
+        [1,2],
+    ]
+    mock_switch = Switch("127.0.0.1", 30000, 101, debug=True)
+    
+    # 创建 ps 实例
+    ps = Node(100, "127.0.0.1", 50000, 50001, 0)
+    mock_switch.nodes[ps.id] = ps
 
-mock_switch = Switch("127.0.0.1", 30000, 100, debug=True)
-ps = Node(200, "127.0.0.1", base_port, base_port+1, 0)
-mock_switch.nodes[ps.id] = ps
-group = Group(1, ps)
-mock_switch.groups[group.id] = group
+    # 注册组
+    groups = []
+    for i in range(1, group_num+1):
+        g = Group(i, ps)
+        mock_switch.groups[g.id] = g
 
-for i in range(node_num):
-    node = Node(i+1, "127.0.0.1", base_port+9+i*6, base_port+10+i*6 , 1 << i)
-    group.addNode(node)
-    mock_switch.nodes[node.id] = node
+    # 创建 client 实例
+    for i, groups in enumerate(node_config):
+        node = Node(i+1, "127.0.0.1", 50000+(i+1)*3, 50000+(i+1)*3 + 1, 1 << i)
+        for j in groups:
+            mock_switch.groups[j].addNode(node)
+        mock_switch.nodes[node.id] = node
 
-mock_switch.start()
+    mock_switch.start()

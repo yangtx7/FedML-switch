@@ -4,16 +4,16 @@ from packet import *
 import time
 
 class Client(Node):
-    def __init__(self, ip_addr: str, rx_port: int, tx_port: int, rpc_addr: str, node_id: int, is_remote_node: bool, iface: str = ""):
-        super().__init__(ip_addr, rx_port, tx_port, rpc_addr, node_id, is_remote_node, iface)
+    def __init__(self, ip_addr: str, rx_port: int, tx_port: int, rpc_addr: str, node_id: int, is_remote_node: bool, max_group_id: int, iface: str = ""):
+        super().__init__(ip_addr, rx_port, tx_port, rpc_addr, node_id, is_remote_node, iface, max_group_id)
         self.type = "client"
 
-    # tensor 长度需要被 elemenet_per_packet 整除
-    def send(self, server: Node, round_id: int, packet_list: list, has_switch: bool) -> int:
+    def send(self, server: Node, round_id: int, packet_list: list, meta: dict = {}, has_switch: bool = False) -> int:
         """
         - server: 参数服务器
         - round_id: 此次发送的轮次号，需要与 packet_list 内所有包轮次号相同
         - packet_list: list[Packet]
+        - meta: 任意可以 pickle.dumps 的字典，将会发送给对端
         - has_switch: 是否使用 switch 聚合模式发送
         """
         print("client 开始发送")
@@ -28,11 +28,13 @@ class Client(Node):
 
         send_start = time.time()
         for i in range(min(window_size, total_packet_num)):
-            send_window.append(packet_list[i])
-            send_window_time.append(time.time())
-            self.tx_sock.sendto(send_window[i].buffer, server_addr)
-
-        rtt = 0.005
+            try:
+                send_window.append(packet_list[i])
+                send_window_time.append(time.time())
+                self.tx_sock.sendto(send_window[i].buffer, server_addr)
+            except:
+                pass
+        rtt = 0.01
         rx_pkt = Packet()
 
         while finish_cnt != total_packet_num:
@@ -66,11 +68,13 @@ class Client(Node):
 
         send_end = time.time()
 
-        retransmit_time = self.check_and_retransmit(server, round_id, packet_list)
+        time.sleep(0.05)
+        retransmit_time = self.check_and_retransmit(server, round_id, packet_list, meta, len(packet_list) - 1)
 
         print("client %d 发送结束 发送耗时 %f 发送速率 %f Mbps 重传耗时 %f" % (
             self.options["node_id"],
             send_end - send_start,
-            elemenet_per_packet * total_packet_num * 4 / 1024 / 1024 * 8 / (send_end - send_start),
-            retransmit_time))
+            element_per_packet * total_packet_num * 4 / 1024 / 1024 * 8 / (send_end - send_start),
+            retransmit_time)
+        )
         return

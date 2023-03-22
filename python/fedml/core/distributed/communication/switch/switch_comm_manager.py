@@ -236,6 +236,7 @@ class SWITCHCommManager(BaseCommunicationManager):
         active_commlib = 0
 
         if self.node_type == "server" and (msg2.type == "1" or msg2.type == "2"):
+            # TODO : prune the model
             if self.config["EnableSwitch"] == 0:
                 active_commlib = 1
             else:
@@ -250,7 +251,6 @@ class SWITCHCommManager(BaseCommunicationManager):
         # TODO : This part can be optimized
         if (self.node_type == "server" and (msg2.type == "1" or msg2.type == "2")) or (self.node_type == "client" and msg2.type == "3"):
             msgx = self.extract_tensor(msg2)
-
 
         logging.info("msg2 = {}".format(msg2))
         logging.info("pickle.dumps(msg2) START")
@@ -470,8 +470,6 @@ class SWITCHCommManager(BaseCommunicationManager):
                             self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] = 0
 
                     self.recv_cnt += 1
-                    print("!!!")
-                    print("recv_cnt =", self.recv_cnt)
                     if self.recv_cnt == self.config["ClientNum"]:
                         self.recv_cnt = 0
                         print("round number", self.round_number, "->", self.round_number+1)

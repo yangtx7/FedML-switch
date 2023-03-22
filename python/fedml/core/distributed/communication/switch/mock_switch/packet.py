@@ -26,10 +26,10 @@ header_format = ">BBHIIHHH"
 header_size = struct.calcsize(header_format)
 
 # packer param
-# elemenet_per_packet = 2048  # MTU 9000
-elemenet_per_packet = 256  # MTU 1100
+element_per_packet = 2048  # MTU 9000
+# element_per_packet = 256  # MTU 1100
 switch_pool_size = 16
-pkt_size = elemenet_per_packet * 4 + header_size
+pkt_size = element_per_packet * 4 + header_size
 
 
 # flow control
@@ -75,7 +75,7 @@ class Packet:
         self.ack = flow_control & ack_bitmap
         self.pool_id = pool_id
 
-    # 必须是 float 数组且 shape: (elemenet_per_packet)
+    # 必须是 float 数组且 shape: (element_per_packet)
     def set_tensor(self, tensor: np.ndarray):
         self.tensor = tensor
 
@@ -113,7 +113,8 @@ class Packet:
         self.set_tensor(np.frombuffer(
             self.buffer,
             dtype=np.int32,
-            offset=header_size
+            offset=header_size,
+            count=element_per_packet
         ))
         if self.data_type == DataType.FLOAT32.value:
             self.tensor = self.tensor.astype(np.float32)
@@ -123,10 +124,10 @@ class Packet:
     # 将 tensor 写入 buffer
     def deparse_payload(self):
         if self.data_type == DataType.FLOAT32.value:
-            self.buffer[header_size: pkt_size] = (
-                self.tensor * scaling_factor).astype(np.int32).tobytes()
+            data = (self.tensor * scaling_factor).astype(np.int32).tobytes()
         else:
-            self.buffer[header_size: pkt_size] = self.tensor.tobytes()
+            data = self.tensor.tobytes()
+        self.buffer[header_size: header_size + len(data) if len(data) < pkt_size else pkt_size] = data
 
     def gen_ack_packet(self):
         return struct.pack(
