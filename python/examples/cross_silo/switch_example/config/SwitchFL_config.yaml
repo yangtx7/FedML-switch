@@ -36,4 +36,4 @@ NetworkTopo : # Specifying which switch each client is belong to, start from Cli
 
 # Decide the way switch_comm_manager upload parameter to aggregator
 # 0->(3, 0, 0) 1->(1, 1, 1)
-ParameterUploadStrategy : 0
+ParameterUploadStrategy : 1
