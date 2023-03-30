@@ -53,6 +53,7 @@ class SWITCHCommManager(BaseCommunicationManager):
         self._observers: List[Observer] = []
         self.rank = client_id
         self.round_number = 1
+        self.model = model
 
         with open("./config/SwitchFL_config.yaml", 'r') as stream:
             self.config = yaml.safe_load(stream)
@@ -89,6 +90,8 @@ class SWITCHCommManager(BaseCommunicationManager):
         self.node_type = "server"
         self.recv_cnt = 0
 
+        self.sendcount = 0
+        self.clientcomm = [0 for i in range(self.client_num)]
         if self.config["EnableSwitch"] == 0:
             self.recv_thread = [None for i in range(self.client_num + 1)]
             self.recv_queue = [queue.Queue() for i in range(self.client_num + 1)]
@@ -224,6 +227,10 @@ class SWITCHCommManager(BaseCommunicationManager):
                 msgx = np.concatenate((msgx, np.array(pkt_list[i].tensor/pkt_list[i].aggregate_num)))
         msg_q.put(msgx)
 
+    # server prune the model in the begin of each round (after the "PruneStartRound" set in the configure file)
+    def prune_model(self):
+        pass
+
     def send_message(self, msg: Message):
         receiver_id = msg.get_receiver_id()
         PORT_BASE = CommunicationConstants.GRPC_BASE_PORT
@@ -236,7 +243,15 @@ class SWITCHCommManager(BaseCommunicationManager):
         active_commlib = 0
 
         if self.node_type == "server" and (msg2.type == "1" or msg2.type == "2"):
+
             # TODO : prune the model
+            if self.sendcount == 0:
+                if self.round_number >= self.config["PruneStartRound"]:
+                    self.prune_model()
+            self.sendcount += 1
+            if (self.sendcount == self.client_num):
+                self.sendcount = 0
+
             if self.config["EnableSwitch"] == 0:
                 active_commlib = 1
             else:
@@ -289,6 +304,8 @@ class SWITCHCommManager(BaseCommunicationManager):
         flg = 0
         print("!!!SEND!!!")
 
+        # TODO : for server in pruning case, need to choose the proper meta and tensor to send
+
         for it in msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS]:
             print(it, msg2.msg_params[Message.MSG_ARG_KEY_MODEL_PARAMS][it].size())
             if flg == 0:
@@ -324,6 +341,8 @@ class SWITCHCommManager(BaseCommunicationManager):
         pkt_list = []
         sleep(0.1)
         
+        # TODO : need to be modified for the pruning case!!!
+        
         if self.node_type == "server":
             if self.config["EnableSwitch"] == 0:
                 for i in range(msg2.pkt_num):
@@ -333,8 +352,6 @@ class SWITCHCommManager(BaseCommunicationManager):
                 for i in range(msg2.pkt_num):
                     pkt_list.append(self.server[self.config["NetworkTopo"][receiver_id-1]].create_packet(self.round_number, i, 1, False, msgx[256*i:256*(i+1)], True))
                 self.server[self.config["NetworkTopo"][receiver_id-1]].send(self.switch[self.config["NetworkTopo"][receiver_id-1]], self.round_number, pkt_list)
-
-            
 
         if self.node_type == "client":   
             # For client it doesn't need multicast, even if it is connected to a switch 
@@ -424,6 +441,8 @@ class SWITCHCommManager(BaseCommunicationManager):
                     self.recv_thread.join()
                     msgx = self.recv_queue.get()
 
+                # TODO : need to be modified to receive pruned model from client
+
                 if self.node_type == "server" and msg.type == "3":
                     active_commlib = 1
                     actual_recv = 0 
@@ -437,7 +456,6 @@ class SWITCHCommManager(BaseCommunicationManager):
 
                             self.recv_thread[self.config["NetworkTopo"][msg.get_sender_id()-1]].join()
 
-                            # TODO : need to * 2
                             msgx = self.recv_queue[self.config["NetworkTopo"][msg.get_sender_id()-1]].get()
 
                             if self.config["ParameterUploadStrategy"] == 0:
@@ -446,9 +464,6 @@ class SWITCHCommManager(BaseCommunicationManager):
                             else:
                                 self.switchmsgx[self.config["NetworkTopo"][msg.get_sender_id()-1]] = msgx
                                 self.switchroundnumber[self.config["NetworkTopo"][msg.get_sender_id()-1]] += 1
-                            
-                            # TODO : for pruning case, it must mutliply some coefficient...
-                            # msgx *= self.switchtot[self.config["NetworkTopo"][msg.get_sender_id()-1]]
                         
                         else:
                             if self.config["ParameterUploadStrategy"] == 0:
@@ -460,9 +475,6 @@ class SWITCHCommManager(BaseCommunicationManager):
                                         break
                                 msgx = self.switchmsgx[self.config["NetworkTopo"][msg.get_sender_id()-1]]
 
-                            # generate a packet padded by zeros to imitate a normal msgx.
-                            # TODO : need to modify
-                            
                             
 
                         self.switchrecv[self.config["NetworkTopo"][msg.get_sender_id()-1]] += 1
@@ -494,6 +506,9 @@ class SWITCHCommManager(BaseCommunicationManager):
         return
 
     def embed_tensor(self, msg: Message, msgx):
+
+        # TODO: for client in pruning case, need to modify the local model architecture
+
         msgx = np.float64(msgx) # convert to float
         cul = 0
         print("!!!RECV!!!")
